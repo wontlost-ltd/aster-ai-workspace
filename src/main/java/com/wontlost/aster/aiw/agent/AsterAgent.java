@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import org.slf4j.Logger;
@@ -63,13 +64,17 @@ public class AsterAgent implements AgUiAgent {
     @Override
     public void run(RunAgentInput input, AgUiEmitter emitter) {
         emitter.emit(new AgUiEvent.RunStarted(input.threadId(), input.runId()));
+        long started = System.nanoTime();
         Outcome outcome = execute(input, emitter);
         if (outcome == Outcome.OK) {
             emitter.emit(new AgUiEvent.RunFinished(input.threadId(), input.runId()));
         }
         emitter.complete();
-        meters.counter("aiw.runs", "mode", RunRequestBuilder.mode(input).wire(),
-                "outcome", outcome.outcome(), "code", outcome.code()).increment();
+        String mode = RunRequestBuilder.mode(input).wire();
+        meters.counter("aiw.runs", "mode", mode, "outcome", outcome.outcome(), "code", outcome.code()).increment();
+        // 耗时不带 code 标签，避免基数膨胀；无 Pro 授权时这是唯一的运行时长指标
+        meters.timer("aiw.run.duration", "mode", mode, "outcome", outcome.outcome())
+                .record(System.nanoTime() - started, TimeUnit.NANOSECONDS);
     }
 
     /**

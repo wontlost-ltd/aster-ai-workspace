@@ -157,6 +157,25 @@ class AsterAgentTest {
         return c == null ? 0 : c.count();
     }
 
+    private io.micrometer.core.instrument.Timer duration(String mode, String outcome) {
+        return meters.find("aiw.run.duration").tags("mode", mode, "outcome", outcome).timer();
+    }
+
+    @Test
+    void happyRunRecordsDurationWithoutCodeTag() throws Exception {
+        responder = sse(HAPPY_SSE);
+        run(input("good-en", "ask", List.of(), Message.user("q")));
+        var t = duration("ask", "ok");
+        assertEquals(1, t.count());
+        assertTrue(t.getId().getTag("code") == null, "耗时指标不得带 code 标签");
+    }
+
+    @Test
+    void errorRunRecordsDuration() {
+        run(input("bad", "ask", List.of(), Message.user("q")));
+        assertEquals(1, duration("ask", "error").count());
+    }
+
     private static String hmac(String canonical) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(KEY.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));

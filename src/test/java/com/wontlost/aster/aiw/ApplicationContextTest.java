@@ -65,5 +65,6 @@ class ApplicationContextTest {
         ResponseEntity<String> r = http.getForEntity("/actuator/prometheus", String.class);
         assertEquals(200, r.getStatusCode().value());
         org.junit.jupiter.api.Assertions.assertTrue(r.getBody().contains("aiw_runs_total"), r.getBody());
+        org.junit.jupiter.api.Assertions.assertTrue(r.getBody().contains("aiw_run_duration_seconds"), r.getBody());
     }
 }

@@ -123,7 +123,8 @@ public class AsterAgent implements AgUiAgent {
 
     /** 调用 cloud 并转发事件；取消时关闭响应流以断开 cloud 连接。 */
     private Outcome relay(CloudCall call, RunAgentInput input, TicketUser user, AgUiEmitter emitter) {
-        var translator = new AsterFrameTranslator(input.messages(), () -> UUID.randomUUID().toString());
+        boolean codeOnly = RunRequestBuilder.mode(input) == RunRequestBuilder.Mode.GENERATE;
+        var translator = new AsterFrameTranslator(input.messages(), () -> UUID.randomUUID().toString(), codeOnly);
         try (Stream<String> lines = cloud.stream(call, user.userId(), emitter::isCancelled)) {
             emitter.onCancel(lines::close);
             return pump(lines.iterator(), translator, user.locale(), emitter);
@@ -134,6 +135,10 @@ public class AsterAgent implements AgUiAgent {
             if (emitter.isCancelled()) {
                 return Outcome.CANCELLED;
             }
+            // 只记异常类与消息（不含请求体与密钥），便于排查 cloud 不可达；读流时的异常取其 IO 原因
+            Throwable cause = e instanceof UncheckedIOException u ? u.getCause() : e;
+            LOG.warn("cloud 调用网络失败 (path={}, run={}): {}: {}", call.path(), input.runId(),
+                    cause.getClass().getName(), cause.getMessage());
             return fail(emitter, ErrorTexts.get(user.locale(), NETWORK), NETWORK);
         }
     }

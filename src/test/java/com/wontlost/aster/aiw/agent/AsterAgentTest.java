@@ -32,6 +32,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.slf4j.LoggerFactory;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.wontlost.agui.agent.AgUiEmitter;
@@ -103,7 +109,8 @@ class AsterAgentTest {
         };
         var beans = new StaticListableBeanFactory(Map.of("tickets", verifier));
         var signer = new CloudRequestSigner(KEY, Clock.systemUTC(), CloudRequestSigner.randomNonce());
-        var client = new CloudLlmClient(HttpClient.newHttpClient(),
+        // 与生产装配同一个 HttpClient，才能覆盖其协议版本（h2c 升级）问题
+        var client = new CloudLlmClient(CloudClientConfig.httpClient(),
                 "http://127.0.0.1:" + server.getAddress().getPort() + "/", signer);
         agent = new AsterAgent(beans.getBeanProvider(TicketVerifier.class), client, meters);
     }
@@ -317,7 +324,8 @@ class AsterAgentTest {
         responder = sse(HAPPY_SSE);
         var verifier = (TicketVerifier) t -> Optional.of(new TicketUser("u1", "zh"));
         var beans = new StaticListableBeanFactory(Map.of("tickets", verifier));
-        var client = new CloudLlmClient(HttpClient.newHttpClient(),
+        // 与生产装配同一个 HttpClient，才能覆盖其协议版本（h2c 升级）问题
+        var client = new CloudLlmClient(CloudClientConfig.httpClient(),
                 "http://127.0.0.1:" + server.getAddress().getPort(),
                 new CloudRequestSigner("", Clock.systemUTC(), CloudRequestSigner.randomNonce()));
         agent = new AsterAgent(beans.getBeanProvider(TicketVerifier.class), client, meters);
@@ -412,9 +420,67 @@ class AsterAgentTest {
     }
 
     @Test
+    void plainHttpCloudCallSendsNoH2cUpgrade() {
+        responder = sse(HAPPY_SSE);
+        run(input("good-en", "ask", List.of(), Message.user("q")));
+        var names = seen.get(0).headers().keySet().stream().map(n -> n.toLowerCase(java.util.Locale.ROOT)).toList();
+        assertFalse(names.contains("upgrade"), "不得发 h2c Upgrade：" + names);
+        assertFalse(names.contains("http2-settings"), "不得发 HTTP2-Settings：" + names);
+    }
+
+    @Test
+    void cloudThatDropsUpgradeRequestsStillAnswers() {
+        // 复现 Next standalone：收到 h2c 升级请求直接断开连接
+        responder = ex -> {
+            if (ex.getRequestHeaders().containsKey("Upgrade")) {
+                throw new IOException("drop h2c upgrade");
+            }
+            sse(HAPPY_SSE).respond(ex);
+        };
+        var events = run(input("good-en", "ask", List.of(), Message.user("q"))).events;
+        assertFalse(events.stream().anyMatch(AgUiEvent.RunError.class::isInstance));
+    }
+
+    @Test
+    void generateResultIsAFencedCodeBlock() {
+        responder = sse("""
+                data:{"type":"delta","data":"Rule a."}
+
+                data:{"type":"final","data":"Rule a.","validated":true}
+
+                """);
+        var events = run(input("good-en", "generate", List.of(), Message.user("q"))).events;
+        var snapshot = events.stream().filter(AgUiEvent.MessagesSnapshot.class::isInstance)
+                .map(AgUiEvent.MessagesSnapshot.class::cast).findFirst().orElseThrow();
+        assertEquals("```aster\nRule a.\n```", snapshot.messages().get(snapshot.messages().size() - 1).content());
+    }
+
+    @Test
+    void suggestResultIsNotFenced() {
+        responder = sse(HAPPY_SSE);
+        var events = run(input("good-en", "suggest", List.of(), Message.user("q"))).events;
+        var snapshot = events.stream().filter(AgUiEvent.MessagesSnapshot.class::isInstance)
+                .map(AgUiEvent.MessagesSnapshot.class::cast).findFirst().orElseThrow();
+        assertEquals("Hi", snapshot.messages().get(snapshot.messages().size() - 1).content());
+    }
+
+    @Test
     void unreachableCloudIsNetworkError() throws IOException {
         server.stop(0);
-        var events = run(input("good-en", "ask", List.of(), Message.user("q"))).events;
+        var logs = new ListAppender<ILoggingEvent>();
+        logs.start();
+        var logger = (Logger) LoggerFactory.getLogger(AsterAgent.class);
+        logger.addAppender(logs);
+        List<AgUiEvent> events;
+        try {
+            events = run(input("good-en", "ask", List.of(), Message.user("q"))).events;
+        } finally {
+            logger.detachAppender(logs);
+        }
+        var warn = logs.list.stream().filter(e -> e.getLevel() == Level.WARN).toList();
+        assertEquals(1, warn.size(), "网络失败必须记一条 WARN");
+        assertTrue(warn.get(0).getFormattedMessage().contains("ConnectException"), warn.get(0).getFormattedMessage());
+        assertTrue(warn.get(0).getThrowableProxy() == null, "只记一行，不带堆栈");
         var err = events.stream().filter(AgUiEvent.RunError.class::isInstance).map(AgUiEvent.RunError.class::cast)
                 .findFirst().orElseThrow();
         assertEquals("network", err.code());

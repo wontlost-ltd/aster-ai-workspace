@@ -262,4 +262,36 @@ class ViewsTest {
         assertEquals(before, forwarded(chat).path("ticket").asString());
         verify(page).setLocation(anyString());
     }
+
+    private static void stateChanged(AgUiChat chat, String json) {
+        var state = (tools.jackson.databind.node.ObjectNode) tools.jackson.databind.json.JsonMapper.builder().build()
+                .readTree(json);
+        ComponentUtil.fireEvent(chat, new AgUiChat.StateChangedEvent(chat, true, state));
+    }
+
+    private static long spansWithText(Component view, String text) {
+        return find(view, com.vaadin.flow.component.html.Span.class).filter(s -> text.equals(s.getText())).count();
+    }
+
+    @Test
+    void workspaceShowsTheModelFromTheAgentState() {
+        WorkspaceView view = workspace(false);
+        AgUiChat chat = enterAs(view, "", QueryParameters.empty());
+        stateChanged(chat, "{\"validated\":true}");
+        assertEquals(0, spansWithText(view, "模型：test-model"));
+
+        stateChanged(chat, "{\"model\":\"test-model\"}");
+
+        assertEquals(1, spansWithText(view, "模型：test-model"));
+    }
+
+    @Test
+    void panelShowsTheModelFromTheAgentState() {
+        PanelView view = panel(false);
+        AgUiChat chat = enterAs(view, "panel", QueryParameters.of("policyId", "p-1"));
+
+        stateChanged(chat, "{\"model\":\"test-model\"}");
+
+        assertEquals(1, spansWithText(view, "模型：test-model"));
+    }
 }

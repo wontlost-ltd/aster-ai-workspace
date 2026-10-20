@@ -73,7 +73,7 @@ public class PanelView extends VerticalLayout implements BeforeEnterObserver {
         Button newChat = new Button(texts.apply("panel.newChat"), VaadinIcon.PLUS.create(),
                 e -> history.newConversation());
         newChat.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
-        HorizontalLayout bar = new HorizontalLayout(modes, newChat);
+        HorizontalLayout bar = new HorizontalLayout(modes, new ModelLabel(chat, texts.apply(ModelLabel.KEY)), newChat);
         bar.setWidthFull();
         bar.setPadding(true);
         bar.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);

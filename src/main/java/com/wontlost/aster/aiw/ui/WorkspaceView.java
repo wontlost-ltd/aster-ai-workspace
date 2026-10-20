@@ -76,16 +76,16 @@ public class WorkspaceView extends VerticalLayout implements BeforeEnterObserver
 
         HorizontalLayout body = new HorizontalLayout(aside, conversation(chat, texts));
         body.setSizeFull();
-        add(header(user, texts), body);
+        add(header(user, texts, new ModelLabel(chat, texts.apply(ModelLabel.KEY))), body);
         setFlexGrow(1, body);
     }
 
-    private Component header(AiwUser user, Function<String, String> texts) {
+    private Component header(AiwUser user, Function<String, String> texts, ModelLabel model) {
         H1 title = new H1(texts.apply("workspace.title"));
         title.getStyle().set("font-size", "var(--lumo-font-size-xl)").set("margin", "0");
         Span who = new Span(displayName(user));
         Anchor back = new Anchor(props.cloudUrl(), texts.apply("workspace.back"));
-        HorizontalLayout header = new HorizontalLayout(title, who, back);
+        HorizontalLayout header = new HorizontalLayout(title, who, model, back);
         header.setWidthFull();
         header.setAlignItems(FlexComponent.Alignment.BASELINE);
         header.expand(who);

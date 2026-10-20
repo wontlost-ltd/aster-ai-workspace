@@ -30,13 +30,131 @@ class AsterFrameTranslatorTest {
         return new AsterFrameTranslator(List.of(Message.user("hi")), queue::pop);
     }
 
+    /** generate 模式的翻译器：源码以代码块呈现。 */
+    private static AsterFrameTranslator generator(String... ids) {
+        var queue = new ArrayDeque<>(List.of(ids));
+        return new AsterFrameTranslator(List.of(Message.user("hi")), queue::pop, true);
+    }
+
+    /** 把一段事件里某条消息的全部文本增量拼起来。 */
+    private static String streamed(List<AgUiEvent> events, String messageId) {
+        StringBuilder text = new StringBuilder();
+        for (AgUiEvent e : events) {
+            if (e instanceof AgUiEvent.TextMessageContent c && c.messageId().equals(messageId)) {
+                text.append(c.delta());
+            }
+        }
+        return text.toString();
+    }
+
+    private static List<AgUiEvent> feed(AsterFrameTranslator t, String... frames) {
+        var events = new ArrayList<AgUiEvent>();
+        for (String frame : frames) {
+            events.addAll(t.onFrame(json(frame)));
+        }
+        return events;
+    }
+
+    private static String snapshotText(List<AgUiEvent> events) {
+        var snap = events.stream().filter(AgUiEvent.MessagesSnapshot.class::isInstance)
+                .map(AgUiEvent.MessagesSnapshot.class::cast).findFirst().orElseThrow();
+        return snap.messages().get(snap.messages().size() - 1).content();
+    }
+
     @Test
-    void metaBecomesCustomModelEvent() {
+    void metaBecomesCustomModelEventAndModelStateDelta() {
         var ev = translator().onFrame(json("{\"type\":\"meta\",\"data\":\"test-model\"}"));
-        assertEquals(1, ev.size());
+        assertEquals(2, ev.size());
         var custom = assertInstanceOf(AgUiEvent.Custom.class, ev.get(0));
         assertEquals("aster.model", custom.name());
         assertEquals("test-model", custom.value().asString());
+        var patch = assertInstanceOf(AgUiEvent.StateDelta.class, ev.get(1)).delta().get(0);
+        assertEquals("add", patch.get("op").asString());
+        assertEquals("/model", patch.get("path").asString());
+        assertEquals("test-model", patch.get("value").asString());
+    }
+
+    @Test
+    void generateStreamIsFencedAndFinalSnapshotIsFencedSource() {
+        var t = generator("m1", "m2");
+        var ev = feed(t,
+                "{\"type\":\"delta\",\"data\":\"Rule a\"}",
+                "{\"type\":\"delta\",\"data\":\".\\n  x.\"}",
+                "{\"type\":\"final\",\"data\":\"Rule a.\\n  x.\",\"validated\":true}");
+        assertEquals("```aster\nRule a.\n  x.\n```", streamed(ev, "m1"));
+        assertEquals("```aster\nRule a.\n  x.\n```", snapshotText(ev));
+    }
+
+    @Test
+    void generateFinalDropsTrailingNewlinesSoCodeIsExactlyTheSource() {
+        var ev = generator("m1").onFrame(json("{\"type\":\"final\",\"data\":\"Rule a.\\n\\n\",\"validated\":true}"));
+        assertEquals("```aster\nRule a.\n```", snapshotText(ev));
+    }
+
+    @Test
+    void generateRepairAttemptsAreEachFenced() {
+        var t = generator("m1", "m2", "m3");
+        var ev = feed(t,
+                "{\"type\":\"delta\",\"data\":\"Rule bad\"}",
+                "{\"type\":\"repair_start\",\"data\":1}",
+                "{\"type\":\"delta\",\"data\":\"Rule good.\"}",
+                "{\"type\":\"final\",\"data\":\"Rule good.\",\"validated\":true}");
+        assertEquals("```aster\nRule bad\n```", streamed(ev, "m1"));
+        assertEquals("```aster\nRule good.\n```", streamed(ev, "m2"));
+        assertEquals("```aster\nRule good.\n```", snapshotText(ev));
+    }
+
+    @Test
+    void generateDoesNotDoubleFenceAlreadyFencedText() {
+        var t = generator("m1", "m2");
+        var ev = feed(t,
+                "{\"type\":\"delta\",\"data\":\"```aster\\nRule a.\"}",
+                "{\"type\":\"delta\",\"data\":\"\\n```\"}",
+                "{\"type\":\"final\",\"data\":\"```aster\\nRule a.\\n```\",\"validated\":true}");
+        assertEquals("```aster\nRule a.\n```", streamed(ev, "m1"));
+        assertEquals("```aster\nRule a.\n```", snapshotText(ev));
+    }
+
+    @Test
+    void generateRecognisesAFenceSplitAcrossDeltas() {
+        var t = generator("m1");
+        var ev = feed(t,
+                "{\"type\":\"delta\",\"data\":\"``\"}",
+                "{\"type\":\"delta\",\"data\":\"`aster\\nRule a.\\n```\"}");
+        ev.addAll(t.finish());
+        assertEquals("```aster\nRule a.\n```", streamed(ev, "m1"));
+    }
+
+    @Test
+    void generateSkipsLeadingBlankDeltasBeforeDecidingOnTheFence() {
+        var t = generator("m1", "m2");
+        var ev = feed(t,
+                "{\"type\":\"delta\",\"data\":\"\\n\"}",
+                "{\"type\":\"delta\",\"data\":\"```aster\\nRule a.\\n```\"}");
+        ev.addAll(t.finish());
+        assertEquals("```aster\nRule a.\n```", streamed(ev, "m1"));
+    }
+
+    @Test
+    void generateFenceOutgrowsBackticksInsideTheSource() {
+        var ev = generator("m1").onFrame(json("{\"type\":\"final\",\"data\":\"Note ```x```.\",\"validated\":false}"));
+        assertEquals("````aster\nNote ```x```.\n````", snapshotText(ev));
+    }
+
+    @Test
+    void generateBlankFinalStaysBlank() {
+        var ev = generator("m1").onFrame(json("{\"type\":\"final\",\"data\":\"\",\"validated\":false}"));
+        assertEquals("", snapshotText(ev));
+    }
+
+    @Test
+    void suggestTextIsNotFenced() {
+        var t = translator("m1", "m2");
+        var ev = feed(t,
+                "{\"type\":\"delta\",\"data\":\"Use x.\"}",
+                "{\"type\":\"final\",\"data\":\"Use x.\",\"validated\":false}");
+        assertEquals("Use x.", streamed(ev, "m1"));
+        assertEquals("Use x.", snapshotText(ev));
     }
 
     @Test

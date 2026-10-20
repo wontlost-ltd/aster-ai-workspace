@@ -1,0 +1,13 @@
+# 构建上下文只保留源码；jar 仅在 JAR_SOURCE=local 时才会被 COPY
+.git
+.github
+.idea
+.claude
+.superpowers
+node_modules
+src/main/frontend/generated
+src/main/bundles
+target/*
+!target/aster-ai-workspace-*.jar
+*.log
+.env*

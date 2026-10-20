@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# 最小权限：CI 只读源码，不注入任何跨仓凭据。
+permissions:
+  contents: read
+
+# 同一 ref 上的新 push 取消尚在运行的过时 CI。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Vaadin 前端构建需要 Node 24
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      # 测试走 H2 内存库，无需外部服务；
+      # 依赖 com.wontlost:agui-vaadin:0.2.0 须已发布到 Maven Central，否则依赖解析失败。
+      - name: Build & Test
+        run: mvn -B -ntp verify
+
+      # 基础设施脚本的表驱动测试（离线）
+      - name: Pin 脚本测试
+        run: |
+          bash scripts/ci/pin-closure-guard.test.sh
+          bash scripts/ci/open-image-pin-pr-merge.test.sh
+          bash scripts/ci/open-image-pin-pr-flow.test.sh

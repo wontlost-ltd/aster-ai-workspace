@@ -1,0 +1,368 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    # 不设 paths-ignore（Codex 交叉审 High）：deploy 用「github.sha == origin/main tip」做
+    # stale-guard 防过时部署，其正确性前提是「每个 main commit 都有自己的 deploy run 接手」。
+    # 若这里 paths-ignore 掉 docs/治理提交，会出现死角：代码提交 A 触发 deploy，随后 docs-only
+    # 提交 B 前进 main 但**不**触发 deploy → A 的 guard 看到 tip=B 判自己过时而跳过，B 又没有
+    # run 接手 → A 的代码永不上线。让每个 commit 都触发 deploy，docs-only 提交会正常成为 tip
+    # 并无害地重部署（rollout restart 幂等）。省"无害重部署"的收益不值这个正确性死角。
+  workflow_dispatch:
+    inputs:
+      trainId:
+        description: >-
+          发布列车标识。**由 release train 传入**，表示本次 dispatch 是发版链路的
+          一环，需要走完整闭环（含 image-pin PR）。
+
+          ★为什么需要它：image-pin-pr 原本只认 `github.event_name == 'push'`，
+          而列车用 workflow_dispatch —— 于是列车触发的部署**永远不会开 pin PR**，
+          集群不换版本，而列车那头只表现为一个「等待超时」（platform#82）。
+          1.0.29 能上线纯属侥幸：当时恰好另有一个 PR 合进 main，那次 push
+          顺带跑完了整条链路。
+
+          手工 dispatch（调试/重跑）留空即可：不开 pin PR，也不会被判失败。
+        type: string
+        required: false
+        default: ''
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+# 顶层最小权限默认（缺省时 GitHub 授予宽泛读写 token）：本 workflow 大多数 job 仅需
+# checkout 读源码。build-and-test 只 build+test；image-pin-pr 用独立 GitHub App token（非
+# GITHUB_TOKEN）跨 org 开 PR 到 k3s，且用 https git ls-remote 查 tip，均不需 GITHUB_TOKEN 写权限。
+# deploy job 需 id-token: write 做 cosign keyless 签名，在该 job 内单独提权覆盖此默认。
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Vaadin 前端构建需要 Node 24
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      # 测试走 H2 内存库，无需外部服务。
+      # 依赖 com.wontlost:agui-vaadin:0.2.0 须已发布到 Maven Central，否则依赖解析失败。
+      - name: Build & Test
+        run: mvn -B -ntp verify
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      # 红队 P2-G：cosign keyless 签名需要 OIDC token（把签名绑定到本 CI 的
+      # GitHub Actions 身份 = repo+workflow）。攻击者即便攻破 DockerHub 推入
+      # 投毒镜像，也无法在没有本 CI OIDC 身份的情况下产出通过校验的签名。
+      id-token: write
+      contents: read
+    # digest-pin Phase 2：把已验签 digest + 是否过时 暴露给下游 image-pin-pr job。
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      stale: ${{ steps.staleguard.outputs.stale }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Stale-commit guard（Codex 交叉审两轮定稿）：部署是不可逆动作（push 镜像 + rollout），
+      # 且 deploy 的 concurrency 不 cancel 正在跑的 run。若 build-and-test 期间 main 又前进了，
+      # 本次携带的已是过时提交——继续部署会把旧代码推上生产、覆盖更新的部署。
+      #
+      # 关键设计（吸取第一轮并行 stale-check 的教训）：guard 必须在**push 镜像的紧前一刻**取
+      # 远端 tip，而不能用 workflow 开头的快照——否则 build 期间 main 前进就漏判。用 git
+      # ls-remote 直接问远端（不依赖本地 refs/remotes 是否被 fetch 刷新，最可靠）。
+      # 仅 push 事件把关；workflow_dispatch 手动部署允许部署任意点。
+      - name: Stale-commit guard (skip push+deploy if main moved ahead)
+        id: staleguard
+        env:
+          # gh api 需要 GH_TOKEN；本 job 的 permissions 已是 contents: read
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "非 push 事件（${{ github.event_name }}），跳过 stale 闸门。"
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          REMOTE_TIP=$(git ls-remote origin refs/heads/main | cut -f1)
+          echo "this run sha:    ${GITHUB_SHA}"
+          echo "origin/main tip: ${REMOTE_TIP}"
+          if [ -z "${REMOTE_TIP}" ]; then
+            echo "::error::无法解析 origin/main tip（git ls-remote 返回空）——为安全起见按过时处理，不部署。"
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+            echo "⚠️ **部署已跳过**：无法解析 origin/main tip，按过时处理（fail-safe）。" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${GITHUB_SHA}" != "${REMOTE_TIP}" ]; then
+            echo "::warning::main 已前进到 ${REMOTE_TIP}，本次 ${GITHUB_SHA} 已过时——跳过 push+部署，交由更新的 run 处理。"
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+            # 运维可观测性：job 会显示成功但实际未部署，在 summary 里显式说明原因（Codex 审 Low）。
+            echo "⏭️ **部署已跳过（过时提交）**：本次 \`${GITHUB_SHA}\` 已非 main tip（现为 \`${REMOTE_TIP}\`），由更新的 deploy run 接手。" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: ${{ steps.staleguard.outputs.stale != 'true' }}
+        uses: docker/setup-qemu-action@v4
+
+      - if: ${{ steps.staleguard.outputs.stale != 'true' }}
+        uses: docker/setup-buildx-action@v4
+
+      - if: ${{ steps.staleguard.outputs.stale != 'true' }}
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Generate image tag
+        id: meta
+        if: ${{ steps.staleguard.outputs.stale != 'true' }}
+        run: |
+          SHA=$(echo "${{ github.sha }}" | head -c 7)
+          TAG="${SHA}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Image tag: ${TAG}"
+
+      - name: Build & Push Docker Image
+        id: build
+        if: ${{ steps.staleguard.outputs.stale != 'true' }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/arm64
+          push: true
+          # pull:true 每次重拉 base，避免复用过期/错误架构的 base 解析结果（Codex 建议）。
+          pull: true
+          # provenance:false 去掉 build-push-action 默认加的 provenance attestation manifest
+          # （platform=unknown/unknown 条目）。某些 containerd/k3s 版本会误选它 exec，且单平台
+          # 镜像不需要 attestation 索引；去掉让 manifest 干净、诊断不被 unknown 条目干扰。
+          # ★注意：provenance:false 只清 manifest，**不保证 rootfs 是 arm64**——真正的架构约束
+          # 来自 Dockerfile 构建期 `RUN uname -m` 断言 + 下面 push 后 verifier（Codex 复审）。
+          provenance: false
+          sbom: false
+          tags: |
+            wontlost/aster-ai-workspace:${{ steps.meta.outputs.tag }}
+            wontlost/aster-ai-workspace:latest
+
+      # ★arm64 内容校验（2026-07-15 加）：集群节点是 ARM64（VM.Standard.A1.Flex Ampere），
+      # 但曾发生 build-push-action + QEMU 产出**内容是 amd64 却标 arm64** 的镜像 → 节点
+      # `exec /bin/sh: exec format error` → CrashLoopBackOff → rollout 卡「progress deadline」。
+      # manifest 的 architecture 字段会撒谎（标 arm64），故拉真实 arm64 变体在其内 `uname -m`
+      # 必须 aarch64，否则**构建即失败**，杜绝 mislabeled 镜像上生产（补上 pipeline 缺的 arch verifier）。
+      - name: Verify pushed image is genuinely arm64
+        if: ${{ steps.staleguard.outputs.stale != 'true' }}
+        run: |
+          set -euo pipefail
+          DIGEST='${{ steps.build.outputs.digest }}'
+          # ★先静默 pull，避免 docker run 的 "Pulling from ..." 进度污染 uname 输出捕获
+          # （之前 2>&1 把 pull 进度混进 $PRE 导致误判 preflight 失败）。pull 出 stdout 丢弃。
+          docker pull -q --platform linux/arm64 alpine:latest >/dev/null 2>&1 || true
+          docker pull -q --platform linux/arm64 "wontlost/aster-ai-workspace@${DIGEST}" >/dev/null 2>&1 || true
+          # arch 捕获：只取 uname 的 **stdout 最后一行**（2>/dev/null 丢 stderr，tail -n1 防残留）。
+          runcmd() { docker run --rm --platform linux/arm64 "$1" sh -c 'uname -m' 2>/dev/null | tail -n1 | tr -d '[:space:]'; }
+          # preflight：runner 的 QEMU/binfmt 能否模拟 arm64（否则真 arm64 镜像也跑不起来，
+          # 会误判成镜像坏）。preflight 失败=CI 环境问题（binfmt 未注册），非镜像 arch 问题。
+          PRE="$(runcmd alpine:latest || true)"
+          case "$PRE" in
+            aarch64|arm64) echo "preflight OK: runner 可模拟 arm64 ($PRE)" ;;
+            *) echo "::error title=qemu preflight failed::runner QEMU/binfmt 未能模拟 arm64（alpine uname='$PRE'）。CI 环境问题非镜像问题。"; exit 1 ;;
+          esac
+          echo "Verifying wontlost/aster-ai-workspace@${DIGEST} is real arm64…"
+          ARCH="$(runcmd "wontlost/aster-ai-workspace@${DIGEST}" || true)"
+          echo "in-image uname -m = '${ARCH}'"
+          case "${ARCH}" in
+            aarch64|arm64) echo "✓ genuine arm64" ;;
+            *) echo "::error title=arch mismatch::pushed image 标 arm64 但内容是 '${ARCH}'（非 aarch64）。QEMU 跨构建产出 mislabeled 镜像，禁止上生产。"; exit 1 ;;
+          esac
+
+      # 红队 P2-G：sign / verify 均对 build-push-action 输出的**不可变 digest** 做（非浮动
+      # tag），把签名身份绑定到本 workflow 的 OIDC。这消除了 verify 阶段的 signed-rollback：
+      # 只签验"本次刚构建"的 digest，历史 digest 不进入验签。
+      #
+      # ⚠️ 已知遗留（TOCTOU，本轮不修，Codex 交叉审确认）：verify 对 digest 成立，但最终
+      # 下面的 `rollout restart` 让集群按 **浮动 tag latest** 重新拉取（因 ArgoCD 对账把
+      # image 字段还原成 git manifest 的 latest，`set image @digest` 会被立即回滚——见
+      # Deploy 步骤注释）。故 verify(digest) 与 pull(latest) 之间存在窗口：tag 可被替换，
+      # 或指向历史签过的 digest。真正闭合需 GitOps 侧按 digest pin（把 @sha256 写进 ArgoCD
+      # git 源）或集群 admission 按签名校验——那是部署模型变更，应单独立项，不在本次 workflow
+      # 优化范围内。当前注释如实描述现状，不再声称"全链 by-digest"。
+      - name: Install cosign
+        if: ${{ steps.staleguard.outputs.stale != 'true' }}
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          # ★必须显式 pin cosign 版本，不能只 pin installer。
+          #   installer 从 @v3 升到 v4.1.2 时，其**默认 cosign-release 由 v2.5.2
+          #   变成 v3.0.6**，而 cosign v3 把 `--new-bundle-format` 设为默认：
+          #   签名改存为 OCI 1.1 referring artifact，旧路径找不到 → `no signatures found`
+          #   （2026-08-01 实测：三个 deploy workflow 同时开始失败，exit code 10）。
+          #   生产验签方是 policy-controller，其内置 cosign 版本未知，且已部署镜像
+          #   全部是 v2 attached 格式——贸然切 v3 可能让**准入拒绝所有新镜像**，
+          #   比 CI 红严重得多。故固定回已验证可用的 v2.5.2。
+          #   升级到 v3 需要单独评估：先确认 policy-controller 支持新 bundle 格式。
+          cosign-release: 'v2.5.2'
+
+      - name: Sign pushed image digest (keyless)
+        if: ${{ steps.staleguard.outputs.stale != 'true' }}
+        env:
+          COSIGN_YES: "true"
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          test -n "${DIGEST}" || { echo "build 未输出 digest，中止"; exit 1; }
+          # signer 身份 = 本 CI 的 OIDC（Fulcio 证书 + Rekor 透明日志）。
+          cosign sign "wontlost/aster-ai-workspace@${DIGEST}"
+          echo "signed digest=${DIGEST}"
+
+      # 部署前校验**本次刚构建的 digest**（非浮动 tag）带一份由本仓库本 workflow 签发的
+      # cosign 签名。fail-closed：任何签名/身份不符 → verify 失败 → 部署中止。
+      - name: Verify freshly-built digest signature
+        if: ${{ steps.staleguard.outputs.stale != 'true' }}
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          cosign verify "wontlost/aster-ai-workspace@${DIGEST}" \
+            --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/\.github/workflows/deploy\.yml@refs/heads/main$" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com"
+
+      # ── Phase 3 P3-2a：已移除 `Deploy to K3S`（kubectl rollout restart）发布语义 ──
+      # 统一 digest pin 全链上线后，发布真相 = image-pin-pr job 开 PR 改 k3s image-lock +
+      # kustomization digest → verify-image-pin 验签通过后脚本合并 → ArgoCD by-digest sync →
+      # 滚动更新。旧的 rollout restart 在 P3-0（kustomize 渲染 @digest）后已**不再是有效发布
+      # 通道**（deployment.spec 已是 @digest，restart 只重启当前 digest、不部署新 tag），故删除。
+      #
+      # ⚠️ 本 job（build+sign+verify）**不再直接部署**——它只产出已验签 digest 供下游 image-pin-pr
+      # 使用。若 image-pin-pr 失败 = 新版本不上线（fail-closed，可见：该 job 会红）。
+      # 回滚：git revert 本 commit 恢复 rollout restart（但注意：需配合 ArgoCD 侧才能真回旧 tag 发布）。
+
+  # ── 统一 digest pin 设计 A′ Phase 2：CI 开 PR 到 k3s 改 image-lock ──────────────
+  # 见 wontlost-ltd/k3s#4、k3s .github/image-pin/。独立 job：fail-loud 但**不阻塞**上面
+  # 既有 rollout 发布路径（Phase 2 期间两条路径并存，Phase 3 再移除 rollout 发布语义）。
+  # ⚠️ 暂态（如实标注）：image-lock PR 合并后 ArgoCD 按 digest sync 一次 + 上面 rollout 一次
+  # ＝同一 digest 可能多一次滚动更新，结果一致（幂等），非安全冲突。
+  #
+  # 前置（人工，见 k3s SETUP.md）：本仓需配 vars.IMAGE_PIN_APP_CLIENT_ID +
+  # secrets.IMAGE_PIN_APP_PRIVATE_KEY（image-pin App id 4253193 的私钥）。未配置则本 job skip，
+  # 而该 pin 时 pin-closure-guard 会因此失败。门控与 mint token 用同一个变量（#343），
+  # 与 aster-replay-runner-deploy / aster-runner-launcher-deploy 一致。
+  # ★「该 pin」的判定（与下面 pin-closure-guard 共用同一套语义，改一处必改两处）：
+  #   push 到 main            → 该 pin（原有行为）
+  #   带 trainId 的 dispatch  → 该 pin（发版列车，platform#82 前它被静默跳过）
+  #   手工无参 dispatch        → 不该 pin（调试/重跑，保持 skip 且不判失败）
+  #
+  #   另两个条件是**真实的不该 pin**，非缺陷：
+  #   - stale == 'true'：github.sha 已不是 origin/main tip，开 PR 会 pin 旧 digest
+  #   - IMAGE_PIN_APP_CLIENT_ID == ''：未配 App 凭据（见 k3s SETUP.md），开不出 PR
+  image-pin-pr:
+    needs: deploy
+    # ★两侧显式加括号：GitHub 表达式里 && 确实比 || 紧，但靠优先级读代码容易被后人误改。
+    if: ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/main')
+             || (github.event_name == 'workflow_dispatch' && inputs.trainId != ''))
+            && needs.deploy.outputs.stale != 'true' && vars.IMAGE_PIN_APP_CLIENT_ID != '' }}
+    runs-on: ubuntu-latest
+    # ★步骤可以被 if: 静默跳过而 job 仍是 success（Final stale gate 判过时即如此），
+    #   所以把「PR 是否真的开出」作为输出交给 pin-closure-guard，而不是让它只看 job 结论（#341）。
+    outputs:
+      pinned: ${{ steps.openpr.outcome == 'success' }}
+      final_stale: ${{ steps.stalegate.outputs.skip }}
+    concurrency:
+      group: image-pin-pr-aster-ai-workspace        # per-image：不与 aster-cloud 的 job 互相取消
+      cancel-in-progress: true
+    steps:
+      - name: Final stale gate (再确认 github.sha 仍是 origin/main tip)
+        env:
+          # gh api 需要 GH_TOKEN；本 job 的 permissions 已是 contents: read
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # 减少 k3s 端 freshness fail-closed 噪音：开 PR 前再查一次，已过时则不开（下次 push 重建）。
+          # ★转私后必须带凭据：匿名 `git ls-remote https://github.com/...` 在私有仓上
+          #   会提示输入用户名 → `fatal: could not read Username` → exit 128
+          #   （2026-08-02 实测：aster-api 转私后三个 deploy workflow 全中）。
+          #   改用 gh api（本 job 已有 contents: read 的 GITHUB_TOKEN），
+          #   顺带避免把 token 写进 URL（不出现在进程列表/git 配置里）。
+          tip="$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)"
+          echo "this run: ${GITHUB_SHA}  origin/main tip: ${tip}"
+          if [ "${GITHUB_SHA}" != "${tip}" ]; then
+            echo "::notice::main 已前进，本 run 过时 → 跳过 image-pin PR（下次 push 重建固定分支）"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+        id: stalegate
+
+      - name: Mint k3s-scoped token (跨 org：App 装在 wontlost-ltd/k3s)
+        if: ${{ steps.stalegate.outputs.skip != 'true' }}
+        id: k3stoken
+        uses: actions/create-github-app-token@v3.2.0
+        with:
+          # client-id 取代已弃用的 app-id（create-github-app-token@v3 弃用警告）。
+          client-id: ${{ vars.IMAGE_PIN_APP_CLIENT_ID }}
+          private-key: ${{ secrets.IMAGE_PIN_APP_PRIVATE_KEY }}
+          owner: wontlost-ltd
+          repositories: k3s
+          permission-contents: write
+          permission-pull-requests: write
+          # 读 k3s 上 verify-image-pin 的结果：脚本等验签通过后才合并（aster-cloud#506）。
+          permission-checks: read
+
+      # checkout 本仓以取用共享脚本（image-pin-pr 是独立 job，需自己 checkout）。
+      - name: Checkout (for shared script)
+        if: ${{ steps.stalegate.outputs.skip != 'true' }}
+        uses: actions/checkout@v7
+
+      - name: Open/update image-pin PR to k3s
+        id: openpr
+        if: ${{ steps.stalegate.outputs.skip != 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.k3stoken.outputs.token }}
+          DIGEST: ${{ needs.deploy.outputs.digest }}
+          SOURCE_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          LOCK_PATH: apps/aster-lang/ai/image-lock.yaml
+          KUSTOMIZATION_PATH: apps/aster-lang/ai/kustomization.yaml
+        run: |
+          bash scripts/ci/open-image-pin-pr.sh \
+            docker.io/wontlost/aster-ai-workspace image-pin/aster-ai-workspace
+
+  # ══ 部署闭环自检：该 pin 而没 pin ⇒ 显式失败 ═══════════════════════════════
+  #
+  # ★为什么必须有这一道（platform#82）：
+  #   image-pin-pr 的 `if:` 为假时 GitHub 把它记为 **skipped**，而 skipped 不会让
+  #   workflow 变红。1.0.29 实测：列车 dispatch 的那次部署 build-and-test/deploy 全绿、
+  #   image-pin-pr 静默 skipped，集群因此**根本没换版本**，列车那头只看到一个「超时」。
+  #   三个信号拼在一起，看起来像「只是慢了点」。
+  #
+  #   条件放宽（上面那个 if）只是让列车能走到 pin；它本身**不会在回归时变红**——
+  #   若将来有人改坏那个条件，pin 又会静默消失。故这里用一道独立的、
+  #   **不共享那个条件**的自检来兜底：只要「本次该 pin」，就要求 pin 真的跑成功了。
+  #
+  # if: always() —— 必须，否则 image-pin-pr 被 skip 时本 job 也跟着 skip，白守。
+  pin-closure-guard:
+    needs: [deploy, image-pin-pr]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      # 判定逻辑在脚本里，有表驱动测试（scripts/ci/pin-closure-guard.test.sh，ci-build 里跑）
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/ci
+      - name: 断言「该 pin 则已 pin」
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          TRAIN_ID: ${{ inputs.trainId }}
+          STALE: ${{ needs.deploy.outputs.stale }}
+          CLIENT_ID: ${{ vars.IMAGE_PIN_APP_CLIENT_ID }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          PIN_RESULT: ${{ needs.image-pin-pr.result }}
+          PINNED: ${{ needs.image-pin-pr.outputs.pinned }}
+          FINAL_STALE: ${{ needs.image-pin-pr.outputs.final_stale }}
+        run: bash scripts/ci/pin-closure-guard.sh

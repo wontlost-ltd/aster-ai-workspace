@@ -58,3 +58,17 @@ mvn -B -ntp -Pproduction package
 
 - Pro/EE 模块（0.1.2）基于 agui-vaadin 0.1.1 构建，`pom.xml` 在 dependencyManagement 中固定 0.2.0。
 - 启用调度后存在多个 `AsyncTaskExecutor`，`ExecutorConfig` 提供 `@Primary` 的虚拟线程执行器供 AG-UI 使用。
+
+## 镜像与发布
+
+- `Dockerfile` 构建 arm64 镜像（`docker.io/wontlost/aster-ai-workspace`），以 uid 1001 运行，根文件系统只读，仅 `/tmp` 可写；默认 `JAVA_OPTS` 见 Dockerfile。
+- 构建阶段在容器内用 Maven + Node 24 构建 Vaadin 生产包。本地无法在容器内拉取依赖时，可先在宿主机 `mvn -Pproduction -DskipTests package`，再：
+
+  ```bash
+  podman build --platform linux/arm64 --build-arg JAR_SOURCE=local --target runtime -t aster-ai-workspace:local .
+  podman run --rm --read-only --tmpfs /tmp -p 8080:8080 aster-ai-workspace:local
+  ```
+
+- `.github/workflows/ci.yml` 在 PR / main 上跑 `mvn verify`；`deploy.yml` 在 main 上构建并推送 `<sha7>` 与 `latest` 标签、校验 arm64、cosign 签名验签，再向 k3s 开 image-pin PR。
+- 所需 secrets：`DOCKER_USERNAME`、`DOCKER_PASSWORD`、`IMAGE_PIN_APP_PRIVATE_KEY`，变量 `IMAGE_PIN_APP_CLIENT_ID`。
+- 注意：`com.wontlost:agui-vaadin:0.2.0` 发布到 Maven Central 之前，CI 与 deploy 的依赖解析会失败，这是预期行为；发布是人工步骤。

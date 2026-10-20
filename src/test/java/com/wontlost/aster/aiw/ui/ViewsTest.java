@@ -294,4 +294,48 @@ class ViewsTest {
 
         assertEquals(1, spansWithText(view, "模型：test-model"));
     }
+
+    private static String status(Component view) {
+        StatusLabel label = find(view, StatusLabel.class).findFirst().orElseThrow();
+        return label.isVisible() ? label.getText() : null;
+    }
+
+    @Test
+    void panelShowsValidationOutcomeAndRepairProgress() {
+        PanelView view = panel(false);
+        AgUiChat chat = enterAs(view, "panel", QueryParameters.of("policyId", "p-1"));
+        assertEquals(null, status(view));
+
+        stateChanged(chat, "{\"model\":\"test-model\",\"validationError\":\"bad\",\"repair\":2}");
+        assertEquals("修复中（2）…", status(view));
+
+        stateChanged(chat, "{\"validated\":true,\"repair\":2}");
+        assertEquals("✓ 已通过校验", status(view));
+
+        stateChanged(chat, "{\"validated\":false,\"validationError\":\"" + "x".repeat(200) + "\"}");
+        assertEquals("✗ 未通过校验：" + "x".repeat(StatusLabel.MAX_ERROR) + "…", status(view));
+
+        ComponentUtil.fireEvent(chat, new AgUiChat.RunStartedEvent(chat, true, "policy:p-1", "r2"));
+        assertEquals(null, status(view), "每次 run 开始时清空");
+    }
+
+    @Test
+    void workspaceShowsNotValidatedWithoutDetailAndClearsOnNullState() {
+        WorkspaceView view = workspace(false);
+        AgUiChat chat = enterAs(view, "", QueryParameters.empty());
+
+        stateChanged(chat, "{\"validated\":false}");
+        assertEquals("✗ 未通过校验", status(view));
+
+        stateChanged(chat, "{\"validated\":null,\"validationError\":null,\"repair\":null,\"model\":\"m\"}");
+        assertEquals(null, status(view));
+    }
+
+    @Test
+    void validationErrorObjectIsShownAsItsMessage() {
+        WorkspaceView view = workspace(false);
+        AgUiChat chat = enterAs(view, "", QueryParameters.empty());
+        stateChanged(chat, "{\"validated\":false,\"validationError\":{\"message\":\"line 3: bad\"}}");
+        assertEquals("✗ 未通过校验：line 3: bad", status(view));
+    }
 }

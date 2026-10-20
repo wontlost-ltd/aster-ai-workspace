@@ -6,6 +6,8 @@ import jakarta.servlet.http.HttpSession;
 import java.net.URI;
 import java.time.Instant;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 public class HandoffController {
+    private static final Logger LOG = LoggerFactory.getLogger(HandoffController.class);
     private final HandoffTokenVerifier verifier;
     private final HandoffJtiStore jtis;
     private final AiwProperties props;
@@ -42,7 +45,10 @@ public class HandoffController {
         }
         HandoffClaims c = claims.get();
         String locale = Locales.normalize(c.locale());
-        if (!verifier.fresh(c) || !jtis.claim(c.jti(), expiry(c))) {
+        String rejected = !verifier.fresh(c) ? "expired" : !jtis.claim(c.jti(), expiry(c)) ? "replayed" : null;
+        if (rejected != null) {
+            // 只记原因码，不记令牌、jti 或用户信息
+            LOG.warn("交接令牌被拒: reason={}", rejected);
             return redirect(rehandoff(target, locale));
         }
         SessionUser.set(sessionFor(request, c.sub()), new AiwUser(c.sub(), c.name(), c.email(), locale, c.role()));

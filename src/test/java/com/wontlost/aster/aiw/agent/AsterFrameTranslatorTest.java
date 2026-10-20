@@ -190,9 +190,12 @@ class AsterFrameTranslatorTest {
         var t = translator("m1", "m2");
         t.onFrame(json("{\"type\":\"delta\",\"data\":\"a\"}"));
         var ev = t.onFrame(json("{\"type\":\"repair_start\",\"data\":1}"));
-        assertEquals(2, ev.size());
+        assertEquals(3, ev.size());
         assertEquals("m1", assertInstanceOf(AgUiEvent.TextMessageEnd.class, ev.get(0)).messageId());
         assertEquals("repair 1", assertInstanceOf(AgUiEvent.StepStarted.class, ev.get(1)).stepName());
+        var patch = assertInstanceOf(AgUiEvent.StateDelta.class, ev.get(2)).delta().get(0);
+        assertEquals("/repair", patch.get("path").asString());
+        assertEquals(1, patch.get("value").asInt());
         var next = t.onFrame(json("{\"type\":\"delta\",\"data\":\"b\"}"));
         assertEquals("m2", assertInstanceOf(AgUiEvent.TextMessageStart.class, next.get(0)).messageId());
     }
@@ -200,8 +203,30 @@ class AsterFrameTranslatorTest {
     @Test
     void repairStartWithoutOpenMessageOnlyEmitsStep() {
         var ev = translator().onFrame(json("{\"type\":\"repair_start\",\"data\":2}"));
-        assertEquals(1, ev.size());
+        assertEquals(2, ev.size());
         assertEquals("repair 2", assertInstanceOf(AgUiEvent.StepStarted.class, ev.get(0)).stepName());
+        var patch = assertInstanceOf(AgUiEvent.StateDelta.class, ev.get(1)).delta().get(0);
+        assertEquals("/repair", patch.get("path").asString());
+    }
+
+    @Test
+    void statusResetClearsValidationAndRepairState() {
+        var patch = AsterFrameTranslator.statusReset().delta();
+        assertEquals(3, patch.size());
+        var paths = new ArrayList<String>();
+        for (JsonNode op : patch) {
+            assertEquals("add", op.get("op").asString());
+            assertTrue(op.get("value").isNull());
+            paths.add(op.get("path").asString());
+        }
+        assertEquals(List.of("/validated", "/validationError", "/repair"), paths);
+    }
+
+    @Test
+    void finalWithoutValidatedFieldEmitsNoValidationState() {
+        var ev = translator("m1").onFrame(json("{\"type\":\"final\",\"data\":\"text\"}"));
+        assertEquals(1, ev.size());
+        assertInstanceOf(AgUiEvent.MessagesSnapshot.class, ev.get(0));
     }
 
     @Test

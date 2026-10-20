@@ -63,8 +63,17 @@ public class HandoffTokenVerifier {
         try {
             return Optional.ofNullable(parse(token));
         } catch (RuntimeException e) {
-            return Optional.empty();
+            return Optional.ofNullable(reject("bad_format"));
         }
+    }
+
+    /**
+     * 拒绝原因记一行 WARN 便于排查（如 T16 密钥对不匹配导致的重定向循环）；
+     * 只记原因码，绝不记令牌、声明或用户信息。
+     */
+    private static HandoffClaims reject(String reason) {
+        LOG.warn("交接令牌被拒: reason={}", reason);
+        return null;
     }
 
     /** exp 之后再宽限 {@link #SKEW_SECONDS} 秒。 */
@@ -73,19 +82,25 @@ public class HandoffTokenVerifier {
     }
 
     private HandoffClaims parse(String token) {
-        if (key == null || token == null) {
-            return null;
+        if (key == null) {
+            return reject("no_public_key");
+        }
+        if (token == null) {
+            return reject("missing");
         }
         int dot = token.indexOf('.');
         if (dot <= 0 || dot != token.lastIndexOf('.')) {
-            return null;
+            return reject("bad_format");
         }
         String payload = token.substring(0, dot);
         if (!signatureValid(payload, Base64.getUrlDecoder().decode(token.substring(dot + 1)))) {
-            return null;
+            return reject("bad_signature");
         }
         JsonNode json = MAPPER.readTree(Base64.getUrlDecoder().decode(payload));
-        return accepted(json) ? toClaims(json) : null;
+        if (!"ai-workspace".equals(json.path("aud").asString(""))) {
+            return reject("bad_audience");
+        }
+        return accepted(json) ? toClaims(json) : reject("bad_claims");
     }
 
     private boolean signatureValid(String payload, byte[] signature) {

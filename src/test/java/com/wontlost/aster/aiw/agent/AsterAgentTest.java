@@ -201,6 +201,8 @@ class AsterAgentTest {
         var events = run(input("good-en", "ask", List.of(), Message.user("hello"))).events;
 
         assertInstanceOf(AgUiEvent.RunStarted.class, events.get(0));
+        var reset = assertInstanceOf(AgUiEvent.StateDelta.class, events.get(1), "每次 run 先清空上次的校验/修复状态");
+        assertEquals("/validated", reset.delta().get(0).get("path").asString());
         var custom = events.stream().filter(AgUiEvent.Custom.class::isInstance).map(AgUiEvent.Custom.class::cast)
                 .findFirst().orElseThrow();
         assertEquals("aster.model", custom.name());

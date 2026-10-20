@@ -125,6 +125,7 @@ public class AsterAgent implements AgUiAgent {
     private Outcome relay(CloudCall call, RunAgentInput input, TicketUser user, AgUiEmitter emitter) {
         boolean codeOnly = RunRequestBuilder.mode(input) == RunRequestBuilder.Mode.GENERATE;
         var translator = new AsterFrameTranslator(input.messages(), () -> UUID.randomUUID().toString(), codeOnly);
+        emitter.emit(AsterFrameTranslator.statusReset());
         try (Stream<String> lines = cloud.stream(call, user.userId(), emitter::isCancelled)) {
             emitter.onCancel(lines::close);
             return pump(lines.iterator(), translator, user.locale(), emitter);

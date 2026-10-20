@@ -60,7 +60,7 @@ class GovernanceConfigTest {
         runner(false).run(ctx -> {
             assertFalse(ctx.getStartupFailure() != null, "未授权不得因 License.require 启动失败");
             Redactor r = ctx.getBean(Redactor.class);
-            assertFalse(r instanceof PatternRedactor);
+            assertInstanceOf(LocalRedactor.class, assertInstanceOf(CodeAwareRedactor.class, r).delegate());
             assertEquals("k=[key]", r.redact("k=" + KEY));
             assertEquals("[email]", r.redact("ann@example.com"));
             assertEquals("ip [ip]", r.redact("ip 10.0.0.1"));
@@ -82,10 +82,26 @@ class GovernanceConfigTest {
         Files.writeString(home.resolve(".agui-pro/trial"), java.time.LocalDate.now().toString());
         runner(true).run(ctx -> {
             Redactor r = ctx.getBean(Redactor.class);
-            assertInstanceOf(PatternRedactor.class, r);
+            assertInstanceOf(PatternRedactor.class, assertInstanceOf(CodeAwareRedactor.class, r).delegate());
             assertEquals("[key]", r.redact(KEY));
             assertEquals("[email]", r.redact("ann@example.com"));
         });
+    }
+
+    @Test
+    void licensedRedactsProseButKeepsFencedCodeIntact() throws Exception {
+        Files.writeString(home.resolve(".agui-pro/trial"), java.time.LocalDate.now().toString());
+        runner(true).run(ctx -> assertCodeKept(ctx.getBean(Redactor.class)));
+    }
+
+    @Test
+    void unlicensedRedactsProseButKeepsFencedCodeIntact() {
+        runner(false).run(ctx -> assertCodeKept(ctx.getBean(Redactor.class)));
+    }
+
+    private static void assertCodeKept(Redactor r) {
+        String msg = "Mail ann@example.com\n" + CodeAwareRedactorTest.CODE + "tail " + KEY;
+        assertEquals("Mail [email]\n" + CodeAwareRedactorTest.CODE + "tail [key]", r.redact(msg));
     }
 
     @Test

@@ -67,7 +67,7 @@ public class WorkspaceView extends VerticalLayout implements BeforeEnterObserver
         Function<String, String> texts = key -> i18n.text(user.locale(), key);
         AgUiChat chat = chats.create(user, Mode.ASK, null, false);
         HistoryBinding history = HistoryBinding.bind(chat, user, chat.getThreadId(), pro, store, trail);
-        TicketExpiry.watch(chat, user, chats, texts.apply(TicketExpiry.RENEWED_KEY), 
+        TicketExpiry.watch(chat, user, chats, texts.apply(TicketExpiry.RENEWED_KEY),
                 () -> UI.getCurrent().getPage().setLocation(HandoffUrls.rehandoff(props.cloudUrl(), "/", user.locale())));
         Component aside = history.conversations()
                 .map(binder -> sidebar(binder, texts))
@@ -76,16 +76,16 @@ public class WorkspaceView extends VerticalLayout implements BeforeEnterObserver
 
         HorizontalLayout body = new HorizontalLayout(aside, conversation(chat, texts));
         body.setSizeFull();
-        add(header(user, texts, new ModelLabel(chat, texts.apply(ModelLabel.KEY))), body);
+        add(header(user, texts, new ModelLabel(chat, texts.apply(ModelLabel.KEY)), new StatusLabel(chat, texts)), body);
         setFlexGrow(1, body);
     }
 
-    private Component header(AiwUser user, Function<String, String> texts, ModelLabel model) {
+    private Component header(AiwUser user, Function<String, String> texts, ModelLabel model, StatusLabel status) {
         H1 title = new H1(texts.apply("workspace.title"));
         title.getStyle().set("font-size", "var(--lumo-font-size-xl)").set("margin", "0");
         Span who = new Span(displayName(user));
         Anchor back = new Anchor(props.cloudUrl(), texts.apply("workspace.back"));
-        HorizontalLayout header = new HorizontalLayout(title, who, model, back);
+        HorizontalLayout header = new HorizontalLayout(title, who, model, status, back);
         header.setWidthFull();
         header.setAlignItems(FlexComponent.Alignment.BASELINE);
         header.expand(who);

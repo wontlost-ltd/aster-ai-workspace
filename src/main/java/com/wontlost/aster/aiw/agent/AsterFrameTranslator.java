@@ -99,10 +99,25 @@ final class AsterFrameTranslator {
         return events;
     }
 
+    /**
+     * 修复开始：除 STEP_STARTED 外再发状态增量 {@code /repair}，
+     * 因为 Flow 端的 {@code AgUiChat} 不暴露 step 事件，界面只能经 state-changed 显示修复进度。
+     */
     private List<AgUiEvent> onRepairStart(JsonNode frame) {
         List<AgUiEvent> events = closeCurrent();
-        events.add(new AgUiEvent.StepStarted("repair " + frame.path("data").asString("")));
+        JsonNode attempt = frame.path("data");
+        events.add(new AgUiEvent.StepStarted("repair " + attempt.asString("")));
+        events.add(new AgUiEvent.StateDelta(addOp("/repair", attempt)));
         return events;
+    }
+
+    /** run 开始时清空上次的校验 / 修复状态（置 null），避免状态跨 run 残留在提示里。 */
+    static AgUiEvent.StateDelta statusReset() {
+        ArrayNode patch = MAPPER.createArrayNode();
+        for (String path : List.of("/validated", "/validationError", "/repair")) {
+            patch.add(addOp(path, MAPPER.getNodeFactory().nullNode()).get(0));
+        }
+        return new AgUiEvent.StateDelta(patch);
     }
 
     private List<AgUiEvent> onValidationError(JsonNode frame) {
@@ -116,8 +131,11 @@ final class AsterFrameTranslator {
         String text = frame.path("data").asString("");
         messages.add(Message.assistant(idGen.get(), codeOnly ? fenced(text) : text));
         events.add(new AgUiEvent.MessagesSnapshot(messages));
-        JsonNode validated = MAPPER.getNodeFactory().booleanNode(frame.path("validated").asBoolean(false));
-        events.add(new AgUiEvent.StateDelta(addOp("/validated", validated)));
+        // 只有带编译结论的 final（generate）才发 /validated，问答类不显示「未通过校验」
+        if (frame.has("validated")) {
+            JsonNode validated = MAPPER.getNodeFactory().booleanNode(frame.path("validated").asBoolean(false));
+            events.add(new AgUiEvent.StateDelta(addOp("/validated", validated)));
+        }
         finalized = true;
         return events;
     }

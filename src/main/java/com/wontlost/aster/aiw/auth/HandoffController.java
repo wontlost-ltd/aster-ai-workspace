@@ -3,11 +3,8 @@ package com.wontlost.aster.aiw.auth;
 import com.wontlost.aster.aiw.config.AiwProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Optional;
-import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,9 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 public class HandoffController {
-    /** 与 cloud 允许的 next 完全一致；不匹配时回落到根路径，杜绝开放重定向。 */
-    private static final Pattern NEXT = Pattern.compile("^/(panel(\\?policyId=[A-Za-z0-9_-]{1,64})?)?$");
-
     private final HandoffTokenVerifier verifier;
     private final HandoffJtiStore jtis;
     private final AiwProperties props;
@@ -40,7 +34,7 @@ public class HandoffController {
             @RequestParam(name = "token", required = false) String token,
             @RequestParam(name = "next", required = false) String next,
             HttpServletRequest request) {
-        String target = safeNext(next);
+        String target = HandoffUrls.safeNext(next);
         Optional<HandoffClaims> claims = verifier.authentic(token);
         if (claims.isEmpty()) {
             return redirect(rehandoff(target, "en"));
@@ -55,18 +49,13 @@ public class HandoffController {
         return redirect(target);
     }
 
-    static String safeNext(String next) {
-        return next != null && NEXT.matcher(next).matches() ? next : "/";
-    }
-
     /** jti 登记保留到令牌连宽限期也失效为止，此后清理不影响防重放。 */
     private static Instant expiry(HandoffClaims c) {
         return Instant.ofEpochSecond(c.exp() + HandoffTokenVerifier.SKEW_SECONDS);
     }
 
     private String rehandoff(String next, String locale) {
-        return props.cloudUrl() + "/api/ai-workspace/handoff?next="
-                + URLEncoder.encode(next, StandardCharsets.UTF_8) + "&locale=" + locale;
+        return HandoffUrls.rehandoff(props.cloudUrl(), next, locale);
     }
 
     private static ResponseEntity<Void> redirect(String location) {

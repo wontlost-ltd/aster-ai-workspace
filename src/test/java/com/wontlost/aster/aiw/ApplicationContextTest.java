@@ -43,7 +43,7 @@ class ApplicationContextTest {
         assertNull(r.getHeaders().get("X-Frame-Options"));
     }
 
-    /** Vaadin 根路由（目前无视图，可能 404/200）同样满足。 */
+    /** Vaadin 根路由（工作台视图，未登录时由视图跳转交接）同样满足。 */
     @Test
     void vaadinRootResponseAllowsFramingByCloudOnly() {
         ResponseEntity<String> r = http.getForEntity("/", String.class);

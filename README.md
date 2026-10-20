@@ -44,6 +44,16 @@ mvn -B -ntp -Pproduction package
 | `AIW_DB_URL` / `AIW_DB_USERNAME` / `AIW_DB_PASSWORD` | 数据库连接 | 见 `application.yml` |
 | `AGUI_PRO_LICENSE` | agui Pro/EE 许可证密钥；未设置时 Pro 功能降级，仅基础聊天 | 空 |
 
+## 界面
+
+- `/`：工作台。左栏为 Pro 会话侧栏（license 覆盖 `conversations` 时）或本会话历史；默认「问答」，「生成 / 建议」可粘贴策略源码作为上下文。
+- `/panel?policyId=`：编辑器侧栏（iframe），默认线程 `policy:{policyId}`、默认「建议」；经 `src/main/frontend/aster-bridge.ts`
+  与 cloud 父页面以 postMessage v1 交换上下文、写回（插入 / 替换）与重新交接，只向 `AIW_CLOUD_ORIGIN` 发送。
+- 未交接的访问一律跳回 cloud `/api/ai-workspace/handoff` 重签。
+- Pro 闸门：仅当 `License.status()` 有效且 key 覆盖该功能时启用会话持久化 / 审计；否则不调用任何 Pro 绑定器，历史保存在 Vaadin 会话内存。
+- 数据库不可用时对话照常，界面提示「本次对话未能保存」。
+- 界面文案：`src/main/resources/i18n/ui_{en,zh,de,hi}.properties`，语言取交接时的用户 locale。
+
 ## 备注
 
 - Pro/EE 模块（0.1.2）基于 agui-vaadin 0.1.1 构建，`pom.xml` 在 dependencyManagement 中固定 0.2.0。

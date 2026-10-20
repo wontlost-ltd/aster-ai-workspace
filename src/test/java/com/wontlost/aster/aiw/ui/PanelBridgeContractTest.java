@@ -20,8 +20,16 @@ class PanelBridgeContractTest {
             assertTrue(ts.contains("'" + type + "'"), type);
         }
         assertTrue(ts.contains("v: 1"));
-        assertTrue(ts.contains("'agui-code-action'") && ts.contains("'agui-run-error'"));
-        assertTrue(ts.contains("'session_expired'"));
+        assertTrue(ts.contains("'agui-code-action'"));
+    }
+
+    /** 重新交接由服务端判定（会话用户已不在）后调用 asterBridge.reauth()；桥本身不再监听运行错误，避免与服务端续签重复。 */
+    @Test
+    void reauthIsServerDrivenNotTriggeredByRunErrors() throws Exception {
+        String ts = Files.readString(BRIDGE);
+        assertTrue(ts.contains("reauth: () =>"), "window.asterBridge 暴露 reauth()");
+        assertFalse(ts.contains("'agui-run-error'"));
+        assertFalse(ts.contains("'session_expired'"));
     }
 
     @Test

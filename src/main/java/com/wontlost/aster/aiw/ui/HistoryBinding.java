@@ -33,10 +33,10 @@ public final class HistoryBinding {
         this.session = session;
     }
 
-    /** 视图入口：会话历史取自当前 VaadinSession，保存失败提示挂在当前 UI 上。 */
+    /** 视图入口：会话历史取自当前 VaadinSession 中该用户的分区，保存失败提示挂在当前 UI 上。 */
     public static HistoryBinding bind(AgUiChat chat, AiwUser user, String threadId, ProFeatures pro,
             ConversationStore store, AuditTrail trail) {
-        return bind(chat, user, threadId, pro, store, trail, SessionHistory.current(), SaveFailedNotice.forCurrentUi());
+        return bind(chat, user, threadId, pro, store, trail, SessionHistory.current(user.userId()), SaveFailedNotice.forCurrentUi());
     }
 
     static HistoryBinding bind(AgUiChat chat, AiwUser user, String threadId, ProFeatures pro,

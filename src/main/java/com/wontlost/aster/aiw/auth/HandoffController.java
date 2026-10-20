@@ -2,6 +2,7 @@ package com.wontlost.aster.aiw.auth;
 
 import com.wontlost.aster.aiw.config.AiwProperties;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import java.net.URI;
 import java.time.Instant;
 import java.util.Optional;
@@ -44,9 +45,22 @@ public class HandoffController {
         if (!verifier.fresh(c) || !jtis.claim(c.jti(), expiry(c))) {
             return redirect(rehandoff(target, locale));
         }
-        SessionUser.set(request.getSession(true), new AiwUser(c.sub(), c.name(), c.email(), locale, c.role()));
+        SessionUser.set(sessionFor(request, c.sub()), new AiwUser(c.sub(), c.name(), c.email(), locale, c.role()));
         request.changeSessionId();
         return redirect(target);
+    }
+
+    /**
+     * 会话里已是另一位用户（同一浏览器换了 cloud 账号）→ 作废旧会话再新建，旧用户的 VaadinSession 与会话历史
+     * 不会带给新用户；同一用户或匿名会话沿用（随后更换会话 id 防会话固定）。
+     */
+    private static HttpSession sessionFor(HttpServletRequest request, String userId) {
+        HttpSession existing = request.getSession(false);
+        if (existing != null && existing.getAttribute(SessionUser.ATTRIBUTE) instanceof AiwUser u
+                && !u.userId().equals(userId)) {
+            existing.invalidate();
+        }
+        return request.getSession(true);
     }
 
     /** jti 登记保留到令牌连宽限期也失效为止，此后清理不影响防重放。 */

@@ -8,13 +8,22 @@ import java.util.Map;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * 一个聊天组件在整个视图生命周期内不变的部分：run 票据、策略 id、各模式的开场建议。
- * 切换模式时据此重建 forwardedProps，票据与策略 id 保持不变。
+ * 一个聊天组件的 forwardedProps 来源：run 票据、策略 id、当前模式、各模式的开场建议。
+ * 切换模式或续签票据时各自只换一项，其余保持不变。
  */
-record ChatProps(String ticket, String policyId, Map<Mode, List<String>> suggestions) implements Serializable {
+record ChatProps(String ticket, String policyId, Mode mode, Map<Mode, List<String>> suggestions)
+        implements Serializable {
+
+    ChatProps withMode(Mode next) {
+        return new ChatProps(ticket, policyId, next, suggestions);
+    }
+
+    ChatProps withTicket(String next) {
+        return new ChatProps(next, policyId, mode, suggestions);
+    }
 
     /** AsterAgent 读取的 forwardedProps：mode、ticket，以及（侧栏时）policyId。 */
-    ObjectNode forwardedProps(Mode mode) {
+    ObjectNode forwardedProps() {
         ObjectNode props = AgUiJson.mapper().createObjectNode().put("mode", mode.wire()).put("ticket", ticket);
         if (policyId != null) {
             props.put("policyId", policyId);
@@ -22,7 +31,7 @@ record ChatProps(String ticket, String policyId, Map<Mode, List<String>> suggest
         return props;
     }
 
-    String[] suggestionsFor(Mode mode) {
+    String[] suggestionsForMode() {
         return suggestions.getOrDefault(mode, List.of()).toArray(String[]::new);
     }
 }

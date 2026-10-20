@@ -2,7 +2,10 @@ package com.wontlost.aster.aiw.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
@@ -24,6 +27,8 @@ class HandoffControllerTest {
             "https://aster-lang.cloud/api/ai-workspace/handoff?next=%2Fpanel%3FpolicyId%3Dp-1&locale=zh";
     private static final AiwProperties PROPS = new AiwProperties(
             "https://aster-lang.cloud", "https://aster-lang.cloud", "h", "unused", "t", 180);
+
+    private static final String VAADIN_ATTR = "com.vaadin.flow.server.VaadinSession.springServlet";
 
     private final HandoffTestKeys keys = new HandoffTestKeys();
     private final HandoffJtiStore jtis = new HandoffJtiStore(H2.fresh());
@@ -54,6 +59,40 @@ class HandoffControllerTest {
                         new AiwUser("user-1", "Ann", "ann@example.com", "zh", "owner")))
                 .andReturn();
         assertNotEquals(before, r.getRequest().getSession().getId(), "交接成功后必须更换会话 id（防会话固定）");
+    }
+
+    /** 同一浏览器换了 cloud 账号：旧会话（含 VaadinSession 与其中的会话历史）整体作废，新用户拿到全新会话。 */
+    @Test
+    void handoffForAnotherUserStartsAFreshSession() throws Exception {
+        var old = new MockHttpSession();
+        SessionUser.set(old, new AiwUser("someone-else", "Bob", null, "en", "member"));
+        old.setAttribute(VAADIN_ATTR, "bob's vaadin session");
+        MvcResult r = mvcAt(NOW + 5)
+                .perform(get("/handoff").session(old).param("token", token("j-u2")).param("next", "/"))
+                .andExpect(redirectedUrl("/"))
+                .andReturn();
+        var fresh = r.getRequest().getSession(false);
+        assertTrue(old.isInvalid(), "旧用户的会话必须失效");
+        assertNotSame(old, fresh);
+        assertNull(fresh.getAttribute(VAADIN_ATTR));
+        assertEquals("user-1", ((AiwUser) fresh.getAttribute(SessionUser.ATTRIBUTE)).userId());
+    }
+
+    /** 同一用户重新交接：沿用会话（Vaadin 状态保留），只更换会话 id。 */
+    @Test
+    void handoffForTheSameUserKeepsTheSessionButRotatesItsId() throws Exception {
+        var same = new MockHttpSession();
+        SessionUser.set(same, new AiwUser("user-1", "Ann", null, "zh", "owner"));
+        same.setAttribute(VAADIN_ATTR, "ann's vaadin session");
+        String before = same.getId();
+        MvcResult r = mvcAt(NOW + 5)
+                .perform(get("/handoff").session(same).param("token", token("j-u1")).param("next", "/"))
+                .andExpect(redirectedUrl("/"))
+                .andReturn();
+        var after = r.getRequest().getSession(false);
+        assertFalse(same.isInvalid());
+        assertEquals("ann's vaadin session", after.getAttribute(VAADIN_ATTR));
+        assertNotEquals(before, after.getId());
     }
 
     @Test

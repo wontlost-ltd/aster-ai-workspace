@@ -1,14 +1,21 @@
 package com.wontlost.aster.aiw.ui;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.ComponentUtil;
 import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.page.Page;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.Location;
 import com.vaadin.flow.router.QueryParameters;
@@ -42,7 +49,8 @@ class ViewsTest {
     private static final AiwUser ANN = new AiwUser("u1", "Ann", null, "zh", "member");
 
     @TempDir Path proHome;
-    private final UI ui = new UI();
+    private final UI ui = spy(new UI());
+    private final Page page = mock(Page.class);
     private final WrappedSession wrapped = mock(WrappedSession.class);
 
     @BeforeEach
@@ -52,6 +60,7 @@ class ViewsTest {
         VaadinSession session = mock(VaadinSession.class);
         when(session.getSession()).thenReturn(wrapped);
         VaadinSession.setCurrent(session);
+        doReturn(page).when(ui).getPage();
         UI.setCurrent(ui);
     }
 
@@ -70,8 +79,36 @@ class ViewsTest {
         return event;
     }
 
+    /** 每次签发都不同的票据，便于断言「已续签」。 */
+    private static final class CountingTicket extends UserTicket {
+        private int issued;
+
+        CountingTicket() {
+            super("k", Clock.systemUTC());
+        }
+
+        @Override
+        public String issue(AiwUser user) {
+            return "ticket-" + user.userId() + "-" + (++issued);
+        }
+    }
+
     private static ChatFactory chats() {
-        return new ChatFactory(new UserTicket("k", Clock.systemUTC()), new AiwI18nProvider());
+        return new ChatFactory(new CountingTicket(), new AiwI18nProvider());
+    }
+
+    private static JsonNode forwarded(AgUiChat chat) {
+        return (JsonNode) chat.getElement().getPropertyRaw("forwardedProps");
+    }
+
+    private static void expire(AgUiChat chat) {
+        ComponentUtil.fireEvent(chat, new AgUiChat.RunErrorEvent(chat, true, "expired", "session_expired"));
+    }
+
+    private AgUiChat enterAs(Component view, String path, QueryParameters query) {
+        when(wrapped.getAttribute(SessionUser.ATTRIBUTE)).thenReturn(ANN);
+        ((com.vaadin.flow.router.BeforeEnterObserver) view).beforeEnter(enter(path, query));
+        return find(view, AgUiChat.class).findFirst().orElseThrow();
     }
 
     private static PanelView panel(boolean pro) {
@@ -108,7 +145,7 @@ class ViewsTest {
         PanelView view = panel(false);
         view.beforeEnter(event);
 
-        verify(event, never()).forwardToUrl(org.mockito.ArgumentMatchers.anyString());
+        verify(event, never()).forwardToUrl(anyString());
         assertEquals(Locale.forLanguageTag("zh"), ui.getLocale());
         AgUiChat chat = find(view, AgUiChat.class).findFirst().orElseThrow();
         assertEquals("policy:p-1", chat.getThreadId());
@@ -145,5 +182,84 @@ class ViewsTest {
 
         assertEquals(1, find(view, ConversationSidebar.class).count());
         assertEquals(0, find(view, SessionHistoryList.class).count());
+    }
+
+    @Test
+    void workspaceRenewsAnExpiredTicketWhileTheUserIsStillSignedIn() {
+        WorkspaceView view = workspace(false);
+        AgUiChat chat = enterAs(view, "", QueryParameters.empty());
+        find(view, ModeSelector.class).findFirst().orElseThrow().getContent()
+                .setValue(com.wontlost.aster.aiw.agent.RunRequestBuilder.Mode.GENERATE);
+        String before = forwarded(chat).path("ticket").asString();
+
+        expire(chat);
+
+        assertNotEquals(before, forwarded(chat).path("ticket").asString());
+        assertEquals("generate", forwarded(chat).path("mode").asString(), "续签保留当前模式");
+        verify(page, never()).setLocation(anyString());
+    }
+
+    @Test
+    void workspaceRedirectsToHandoffWhenTheSessionUserIsGone() {
+        WorkspaceView view = workspace(false);
+        AgUiChat chat = enterAs(view, "", QueryParameters.empty());
+        String before = forwarded(chat).path("ticket").asString();
+        when(wrapped.getAttribute(SessionUser.ATTRIBUTE)).thenReturn(null);
+
+        expire(chat);
+
+        assertEquals(before, forwarded(chat).path("ticket").asString());
+        verify(page).setLocation("https://cloud.test/api/ai-workspace/handoff?next=%2F&locale=zh");
+    }
+
+    @Test
+    void otherRunErrorsAreIgnored() {
+        WorkspaceView view = workspace(false);
+        AgUiChat chat = enterAs(view, "", QueryParameters.empty());
+        String before = forwarded(chat).path("ticket").asString();
+        ComponentUtil.fireEvent(chat, new AgUiChat.RunErrorEvent(chat, true, "x", "network"));
+        assertEquals(before, forwarded(chat).path("ticket").asString());
+    }
+
+    @Test
+    void panelRenewsTheTicketServerSideWithoutAskingTheParentToReauth() {
+        PanelView view = panel(false);
+        AgUiChat chat = enterAs(view, "panel", QueryParameters.of("policyId", "p-1"));
+        String before = forwarded(chat).path("ticket").asString();
+
+        expire(chat);
+
+        assertNotEquals(before, forwarded(chat).path("ticket").asString());
+        assertEquals("p-1", forwarded(chat).path("policyId").asString());
+        verify(page, never()).executeJs("window.asterBridge.reauth()");
+        verify(page, never()).setLocation(anyString());
+    }
+
+    @Test
+    void panelAsksTheParentToReauthOnlyWhenTheSessionUserIsGone() {
+        PanelView view = panel(false);
+        AgUiChat chat = enterAs(view, "panel", QueryParameters.of("policyId", "p-1"));
+        String before = forwarded(chat).path("ticket").asString();
+        when(wrapped.getAttribute(SessionUser.ATTRIBUTE)).thenReturn(null);
+
+        expire(chat);
+
+        assertEquals(before, forwarded(chat).path("ticket").asString());
+        verify(page).executeJs("window.asterBridge.reauth()");
+        verify(page, never()).setLocation(anyString());
+    }
+
+    /** 会话里换成了另一个用户：旧视图不得替新用户续签。 */
+    @Test
+    void ticketIsNotRenewedForADifferentSessionUser() {
+        WorkspaceView view = workspace(false);
+        AgUiChat chat = enterAs(view, "", QueryParameters.empty());
+        String before = forwarded(chat).path("ticket").asString();
+        when(wrapped.getAttribute(SessionUser.ATTRIBUTE)).thenReturn(new AiwUser("u2", "Bob", null, "en", "member"));
+
+        expire(chat);
+
+        assertEquals(before, forwarded(chat).path("ticket").asString());
+        verify(page).setLocation(anyString());
     }
 }

@@ -1,5 +1,6 @@
 package com.wontlost.aster.aiw.ui;
 
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dependency.JsModule;
@@ -24,7 +25,7 @@ import java.util.function.Function;
  * 编辑器侧栏（{@code /panel?policyId=}，ADR 0049 §2.1/§2.5）：以 iframe 嵌在 cloud 策略编辑器右栏。
  *
  * <p>默认线程 {@code policy:{policyId}}、默认模式「建议」；策略上下文与写回经浏览器侧的
- * {@code aster-bridge.ts} 与父页面 postMessage 交换，服务端不参与。
+ * {@code aster-bridge.ts} 与父页面 postMessage 交换，服务端不参与；票据过期由 {@link TicketExpiry} 处理。
  */
 @Route("panel")
 @JsModule("./aster-bridge.ts")
@@ -63,6 +64,9 @@ public class PanelView extends VerticalLayout implements BeforeEnterObserver {
         Function<String, String> texts = key -> i18n.text(user.locale(), key);
         AgUiChat chat = chats.create(user, Mode.SUGGEST, policyId, true);
         HistoryBinding history = HistoryBinding.bind(chat, user, PanelParams.threadId(policyId), pro, store, trail);
+        // 会话用户已不在时才请父页面重建 iframe 重新交接；仍在则服务端续签，不重载
+        TicketExpiry.watch(chat, user, chats, texts.apply(TicketExpiry.RENEWED_KEY),
+                () -> UI.getCurrent().getPage().executeJs("window.asterBridge.reauth()"));
 
         ModeSelector modes = new ModeSelector(Mode.SUGGEST, texts);
         modes.addModeChangeListener(mode -> ChatFactory.switchMode(chat, mode));

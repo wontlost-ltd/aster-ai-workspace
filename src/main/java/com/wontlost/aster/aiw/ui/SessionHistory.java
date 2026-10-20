@@ -14,8 +14,10 @@ import java.util.Optional;
 
 /**
  * 无 Pro 会话授权时的历史（ADR 0049 §2.4/§2.8）：存于 VaadinSession 属性 {@value #ATTRIBUTE}，
- * 形如 {@code Map<threadId, List<Message>>}，仅当前会话内可读。工作台与侧栏 iframe 共享同一会话，
- * 两个 UI 都在会话锁下访问它。按最近保存排序，最多保留 {@value #MAX_THREADS} 个线程以限制内存。
+ * 形如 {@code Map<userId, Map<threadId, List<Message>>>}，仅当前会话内可读。按用户分区：同一浏览器换号重新交接时，
+ * 即便会话仍在，也读不到上一位用户的线程（交接控制器另会作废旧会话，双重保护）。
+ * 实例只代表一位用户的分区；工作台与侧栏 iframe 共享同一会话，两个 UI 都在会话锁下访问。
+ * 每位用户按最近保存排序，最多保留 {@value #MAX_THREADS} 个线程以限制内存。
  */
 public final class SessionHistory {
     public static final String ATTRIBUTE = "aiw.history";
@@ -31,19 +33,20 @@ public final class SessionHistory {
         this.threads = threads;
     }
 
-    /** 取（必要时创建）会话里的历史。 */
+    /** 取（必要时创建）会话里某位用户的历史分区。 */
     @SuppressWarnings("unchecked")
-    public static SessionHistory of(VaadinSession session) {
-        Map<String, List<Message>> threads = (Map<String, List<Message>>) session.getAttribute(ATTRIBUTE);
-        if (threads == null) {
-            threads = new LinkedHashMap<>();
-            session.setAttribute(ATTRIBUTE, threads);
+    public static SessionHistory of(VaadinSession session, String userId) {
+        Map<String, Map<String, List<Message>>> users =
+                (Map<String, Map<String, List<Message>>>) session.getAttribute(ATTRIBUTE);
+        if (users == null) {
+            users = new LinkedHashMap<>();
+            session.setAttribute(ATTRIBUTE, users);
         }
-        return new SessionHistory(threads);
+        return new SessionHistory(users.computeIfAbsent(userId, id -> new LinkedHashMap<>()));
     }
 
-    public static SessionHistory current() {
-        return of(VaadinSession.getCurrent());
+    public static SessionHistory current(String userId) {
+        return of(VaadinSession.getCurrent(), userId);
     }
 
     /** 保存一次运行结束时客户端回传的完整对话；空对话不记。 */

@@ -1,6 +1,7 @@
 package com.wontlost.aster.aiw.ui;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.Span;
@@ -20,6 +21,7 @@ import com.wontlost.agui.pro.conversations.ConversationSidebarI18n;
 import com.wontlost.agui.pro.conversations.ConversationStore;
 import com.wontlost.aster.aiw.agent.RunRequestBuilder.Mode;
 import com.wontlost.aster.aiw.auth.AiwUser;
+import com.wontlost.aster.aiw.auth.HandoffUrls;
 import com.wontlost.aster.aiw.config.AiwProperties;
 import com.wontlost.aster.aiw.i18n.AiwI18nProvider;
 import com.wontlost.aster.aiw.i18n.I18nBeans;
@@ -65,6 +67,8 @@ public class WorkspaceView extends VerticalLayout implements BeforeEnterObserver
         Function<String, String> texts = key -> i18n.text(user.locale(), key);
         AgUiChat chat = chats.create(user, Mode.ASK, null, false);
         HistoryBinding history = HistoryBinding.bind(chat, user, chat.getThreadId(), pro, store, trail);
+        TicketExpiry.watch(chat, user, chats, texts.apply(TicketExpiry.RENEWED_KEY), 
+                () -> UI.getCurrent().getPage().setLocation(HandoffUrls.rehandoff(props.cloudUrl(), "/", user.locale())));
         Component aside = history.conversations()
                 .map(binder -> sidebar(binder, texts))
                 .orElseGet(() -> sessionList(chat, history, texts));

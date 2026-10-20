@@ -44,17 +44,24 @@ public class ChatFactory {
         if (compact) {
             chat.addThemeVariants(AgUiChatVariant.COMPACT);
         }
-        ComponentUtil.setData(chat, ChatProps.class,
-                new ChatProps(tickets.issue(user), policyId, suggestions(user.locale())));
-        switchMode(chat, mode);
+        apply(chat, new ChatProps(tickets.issue(user), policyId, mode, suggestions(user.locale())));
         return chat;
     }
 
     /** 切换模式：重建 forwardedProps（保留票据与策略 id）并换上该模式的开场建议。 */
     public static void switchMode(AgUiChat chat, Mode mode) {
-        ChatProps props = ComponentUtil.getData(chat, ChatProps.class);
-        chat.setForwardedProps(props.forwardedProps(mode));
-        chat.setSuggestions(props.suggestionsFor(mode));
+        apply(chat, ComponentUtil.getData(chat, ChatProps.class).withMode(mode));
+    }
+
+    /** 票据过期（12 小时）而会话用户仍在：重签票据，模式、策略 id 与组件上的 context 均不变。 */
+    public void renewTicket(AgUiChat chat, AiwUser user) {
+        apply(chat, ComponentUtil.getData(chat, ChatProps.class).withTicket(tickets.issue(user)));
+    }
+
+    private static void apply(AgUiChat chat, ChatProps props) {
+        ComponentUtil.setData(chat, ChatProps.class, props);
+        chat.setForwardedProps(props.forwardedProps());
+        chat.setSuggestions(props.suggestionsForMode());
     }
 
     private Map<Mode, List<String>> suggestions(String locale) {

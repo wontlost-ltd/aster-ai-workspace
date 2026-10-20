@@ -8,6 +8,11 @@ spring:
     password: ${AIW_DB_PASSWORD:}
     hikari:
       maximum-pool-size: 5
+  # 只建本服务自有的表；Pro 模块的表由其自身 initializeSchema 创建，两者互不干扰
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-aiw.sql
 agui:
   path: /agui
   timeout: 10m

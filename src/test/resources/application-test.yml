@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:aiw;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+aiw:
+  cloud-url: https://cloud.test
+  cloud-origin: https://cloud.test
+  hmac-key: test-hmac-key
+  handoff-public-key: test-handoff-public-key
+  ticket-key: test-ticket-key
+  retention-days: 180
+vaadin:
+  productionMode: false
+  frontend:
+    hotdeploy: false

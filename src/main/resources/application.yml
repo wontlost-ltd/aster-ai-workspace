@@ -1,0 +1,34 @@
+server:
+  port: 8080
+  forward-headers-strategy: framework
+spring:
+  datasource:
+    url: ${AIW_DB_URL:jdbc:postgresql://localhost:5432/aster_cloud?currentSchema=ai_workspace}
+    username: ${AIW_DB_USERNAME:aster_ai_user}
+    password: ${AIW_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 5
+agui:
+  path: /agui
+  timeout: 10m
+  pro:
+    license: ${AGUI_PRO_LICENSE:}
+  ee:
+    governance:
+      retention:
+        conversations-days: ${AIW_RETENTION_DAYS:180}
+        audit-days: ${AIW_RETENTION_DAYS:180}
+        cron: "0 17 3 * * *"
+aiw:
+  cloud-url: ${AIW_CLOUD_URL:https://aster-lang.cloud}
+  cloud-origin: ${AIW_CLOUD_ORIGIN:https://aster-lang.cloud}
+  hmac-key: ${AIW_HMAC_KEY:}
+  handoff-public-key: ${AIW_HANDOFF_PUBLIC_KEY:}
+  ticket-key: ${AIW_TICKET_KEY:}
+  retention-days: ${AIW_RETENTION_DAYS:180}
+management:
+  endpoints.web.exposure.include: health,prometheus
+  endpoint.health.probes.enabled: true
+vaadin:
+  launch-browser: false
+  allowed-packages: com.vaadin,org.vaadin,com.wontlost

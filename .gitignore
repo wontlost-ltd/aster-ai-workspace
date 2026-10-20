@@ -1,0 +1,16 @@
+target/
+.idea/
+*.iml
+.DS_Store
+*.log
+.env*
+.claude/
+.superpowers/
+node_modules/
+src/main/frontend/generated/
+src/main/bundles/
+package.json
+package-lock.json
+tsconfig.json
+types.d.ts
+vite.generated.ts

@@ -15,8 +15,8 @@ class FrameAncestorsFilterTest {
         var filter = new FrameAncestorsFilter(ORIGIN);
         var req = new MockHttpServletRequest("GET", "/panel");
         var res = new MockHttpServletResponse();
-        res.setHeader("X-Frame-Options", "DENY");
-        filter.doFilter(req, res, (rq, rs) -> {});
+        filter.doFilter(req, res, (rq, rs) ->
+                ((jakarta.servlet.http.HttpServletResponse) rs).setHeader("X-Frame-Options", "DENY"));
         assertEquals("frame-ancestors " + ORIGIN, res.getHeader("Content-Security-Policy"));
         assertNull(res.getHeader("X-Frame-Options"));
     }
@@ -36,5 +36,15 @@ class FrameAncestorsFilterTest {
         assertEquals("frame-ancestors " + ORIGIN, res.getHeader("Content-Security-Policy"));
         assertEquals(1, res.getHeaders("Content-Security-Policy").size());
         assertNull(res.getHeader("X-Frame-Options"));
+    }
+
+    /** 链内 reset() 清空所有头后，CSP 仍须存在。 */
+    @Test
+    void resetInsideChainKeepsPolicy() throws Exception {
+        var filter = new FrameAncestorsFilter(ORIGIN);
+        var res = new MockHttpServletResponse();
+        filter.doFilter(new MockHttpServletRequest("GET", "/x"), res, (rq, rs) ->
+                ((jakarta.servlet.http.HttpServletResponse) rs).reset());
+        assertEquals("frame-ancestors " + ORIGIN, res.getHeader("Content-Security-Policy"));
     }
 }

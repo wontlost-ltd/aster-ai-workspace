@@ -135,9 +135,7 @@
         <profile>
             <id>dev</id>
             <activation>
-                <property>
-                    <name>!production</name>
-                </property>
+                <activeByDefault>true</activeByDefault>
             </activation>
             <dependencies>
                 <dependency>

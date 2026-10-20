@@ -33,4 +33,22 @@ class ApplicationContextTest {
                 r.getHeaders().get("Content-Security-Policy"));
         assertNull(r.getHeaders().get("X-Frame-Options"));
     }
+
+    /** 404 走错误分派，也必须带 frame-ancestors 且无 X-Frame-Options。 */
+    @Test
+    void notFoundResponsesAlsoAllowFramingByCloudOnly() {
+        ResponseEntity<String> r = http.getForEntity("/no-such-path-xyz", String.class);
+        assertEquals(java.util.List.of("frame-ancestors https://cloud.test"),
+                r.getHeaders().get("Content-Security-Policy"));
+        assertNull(r.getHeaders().get("X-Frame-Options"));
+    }
+
+    /** Vaadin 根路由（目前无视图，可能 404/200）同样满足。 */
+    @Test
+    void vaadinRootResponseAllowsFramingByCloudOnly() {
+        ResponseEntity<String> r = http.getForEntity("/", String.class);
+        assertEquals(java.util.List.of("frame-ancestors https://cloud.test"),
+                r.getHeaders().get("Content-Security-Policy"));
+        assertNull(r.getHeaders().get("X-Frame-Options"));
+    }
 }

@@ -13,7 +13,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *
  * <p>保证最终响应只带 {@code Content-Security-Policy: frame-ancestors <cloudOrigin>}，
  * 且不出现 {@code X-Frame-Options}。下游（Vaadin 等）可能晚于本过滤器写入这两个头，
- * 因此用响应包装器在写入时拦截，并在链结束后再确认一次。
+ * 因此用响应包装器在写入时拦截。
  */
 public class FrameAncestorsFilter extends OncePerRequestFilter {
     private static final String CSP = "Content-Security-Policy";
@@ -32,10 +32,18 @@ public class FrameAncestorsFilter extends OncePerRequestFilter {
         var wrapped = new Guarded(response, policy);
         wrapped.setHeader(CSP, policy);
         chain.doFilter(request, wrapped);
-        if (!response.isCommitted()) {
-            response.setHeader(CSP, policy);
-            response.setHeader(XFO, null);
-        }
+    }
+
+    /** 错误分派（如 404 页）同样要带 frame-ancestors。 */
+    @Override
+    protected boolean shouldNotFilterErrorDispatch() {
+        return false;
+    }
+
+    /** 异步分派（SSE/Vaadin push）同样要带 frame-ancestors。 */
+    @Override
+    protected boolean shouldNotFilterAsyncDispatch() {
+        return false;
     }
 
     /** 丢弃 X-Frame-Options，并把任何 CSP 写入固化为本服务的策略。 */
@@ -45,6 +53,13 @@ public class FrameAncestorsFilter extends OncePerRequestFilter {
         Guarded(HttpServletResponse response, String policy) {
             super(response);
             this.policy = policy;
+        }
+
+        /** reset() 会清空所有头，随后立即补回策略，避免响应丢失 CSP。 */
+        @Override
+        public void reset() {
+            super.reset();
+            super.setHeader(CSP, policy);
         }
 
         @Override

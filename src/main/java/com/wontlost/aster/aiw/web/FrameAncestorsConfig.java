@@ -13,6 +13,11 @@ public class FrameAncestorsConfig {
     FilterRegistrationBean<FrameAncestorsFilter> frameAncestorsFilter(AiwProperties props) {
         var reg = new FilterRegistrationBean<>(new FrameAncestorsFilter(props.cloudOrigin()));
         reg.addUrlPatterns("/*");
+        reg.setDispatcherTypes(
+                java.util.EnumSet.of(
+                        jakarta.servlet.DispatcherType.REQUEST,
+                        jakarta.servlet.DispatcherType.ERROR,
+                        jakarta.servlet.DispatcherType.ASYNC));
         reg.setOrder(Ordered.HIGHEST_PRECEDENCE);
         return reg;
     }

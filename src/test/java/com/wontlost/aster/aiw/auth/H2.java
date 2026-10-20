@@ -18,6 +18,10 @@ final class H2 {
         populator.execute(ds);
         // 再执行一次：脚本必须幂等（每次启动都会运行）
         populator.execute(ds);
-        return new JdbcTemplate(ds);
+        return new FlakyJdbc(ds);
+    }
+
+    static FlakyJdbc flaky() {
+        return (FlakyJdbc) fresh();
     }
 }

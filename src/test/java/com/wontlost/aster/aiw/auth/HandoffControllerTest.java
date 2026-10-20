@@ -29,9 +29,13 @@ class HandoffControllerTest {
     private final HandoffJtiStore jtis = new HandoffJtiStore(H2.fresh());
 
     private MockMvc mvcAt(long now) {
+        return mvcAt(now, jtis);
+    }
+
+    private MockMvc mvcAt(long now, HandoffJtiStore store) {
         var verifier = new HandoffTokenVerifier(
                 keys.publicKeyB64(), Clock.fixed(Instant.ofEpochSecond(now), ZoneOffset.UTC));
-        return MockMvcBuilders.standaloneSetup(new HandoffController(verifier, jtis, PROPS)).build();
+        return MockMvcBuilders.standaloneSetup(new HandoffController(verifier, store, PROPS)).build();
     }
 
     private String token(String jti) {
@@ -109,5 +113,30 @@ class HandoffControllerTest {
                 .andReturn();
         var user = (AiwUser) r.getRequest().getSession().getAttribute(SessionUser.ATTRIBUTE);
         assertEquals("en", user.locale());
+    }
+
+    /** 数据库宕机/抖动时交接不阻断（Review Focus #1、ADR §2.7），但单次使用仍由内存登记保证。 */
+    @Test
+    void databaseOutageStillCompletesHandoffAndBlocksReplay() throws Exception {
+        FlakyJdbc jdbc = H2.flaky();
+        var store = new HandoffJtiStore(jdbc, Clock.fixed(Instant.ofEpochSecond(NOW), ZoneOffset.UTC));
+        var mvc = mvcAt(NOW + 5, store);
+        String t = token("j-down");
+        jdbc.down = true;
+
+        mvc.perform(get("/handoff").param("token", t).param("next", "/panel?policyId=p-1"))
+                .andExpect(status().isFound())
+                .andExpect(redirectedUrl("/panel?policyId=p-1"))
+                .andExpect(request().sessionAttribute(SessionUser.ATTRIBUTE,
+                        new AiwUser("user-1", "Ann", "ann@example.com", "zh", "owner")));
+
+        mvc.perform(get("/handoff").param("token", t).param("next", "/panel?policyId=p-1"))
+                .andExpect(status().isFound())
+                .andExpect(redirectedUrl(CLOUD_PANEL));
+
+        jdbc.down = false;
+        mvc.perform(get("/handoff").param("token", t).param("next", "/panel?policyId=p-1"))
+                .andExpect(status().isFound())
+                .andExpect(redirectedUrl(CLOUD_PANEL));
     }
 }

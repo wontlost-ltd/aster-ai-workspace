@@ -38,6 +38,9 @@ class AiwI18nProviderTest {
             for (String key : I18nBeans.keys(ConversationSidebarI18n.class, "sidebar.")) {
                 assertTrue(i18n.keys(locale).contains(key), locale + " " + key);
             }
+            for (String key : I18nBeans.keys(com.wontlost.agui.pro.audit.AuditExplorerI18n.class, "audit.")) {
+                assertTrue(i18n.keys(locale).contains(key), locale + " " + key);
+            }
         }
     }
 

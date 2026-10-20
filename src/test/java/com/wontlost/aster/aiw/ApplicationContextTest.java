@@ -17,6 +17,8 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 class ApplicationContextTest {
     @Autowired TestRestTemplate http;
+    @Autowired @org.springframework.beans.factory.annotation.Qualifier("aster")
+    com.wontlost.agui.agent.AgUiAgent agent;
 
     @Test
     void healthIsUp() {
@@ -50,5 +52,18 @@ class ApplicationContextTest {
         assertEquals(java.util.List.of("frame-ancestors https://cloud.test"),
                 r.getHeaders().get("Content-Security-Policy"));
         assertNull(r.getHeaders().get("X-Frame-Options"));
+    }
+
+    /** /actuator/prometheus 可达，且 AsterAgent 的 aiw.runs 计数随运行出现（未授权时不依赖 Pro 可观测）。 */
+    @Test
+    void prometheusExposesAiwRuns() {
+        var input = new com.wontlost.agui.model.RunAgentInput("t", "r", null, java.util.List.of(),
+                java.util.List.of(), java.util.List.of(),
+                tools.jackson.databind.json.JsonMapper.builder().build().createObjectNode());
+        agent.run(input, org.mockito.Mockito.mock(com.wontlost.agui.agent.AgUiEmitter.class));
+
+        ResponseEntity<String> r = http.getForEntity("/actuator/prometheus", String.class);
+        assertEquals(200, r.getStatusCode().value());
+        org.junit.jupiter.api.Assertions.assertTrue(r.getBody().contains("aiw_runs_total"), r.getBody());
     }
 }

@@ -23,7 +23,9 @@ agui:
       retention:
         conversations-days: ${AIW_RETENTION_DAYS:180}
         audit-days: ${AIW_RETENTION_DAYS:180}
-        cron: "0 17 3 * * *"
+    # 由 GovernanceConfig / ObservabilityConfig 按授权闸门接管，避免 Pro 自动配置在未授权时触达 License.require
+    observability:
+      enabled: false
 aiw:
   cloud-url: ${AIW_CLOUD_URL:https://aster-lang.cloud}
   cloud-origin: ${AIW_CLOUD_ORIGIN:https://aster-lang.cloud}
@@ -31,6 +33,8 @@ aiw:
   handoff-public-key: ${AIW_HANDOFF_PUBLIC_KEY:}
   ticket-key: ${AIW_TICKET_KEY:}
   retention-days: ${AIW_RETENTION_DAYS:180}
+  retention:
+    cron: "0 17 3 * * *"
 management:
   endpoints.web.exposure.include: health,prometheus
   endpoint.health.probes.enabled: true

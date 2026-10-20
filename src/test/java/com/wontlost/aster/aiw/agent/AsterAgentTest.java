@@ -52,7 +52,7 @@ class AsterAgentTest {
     private static final String KEY = "k".repeat(64);
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
     private static final String HAPPY_SSE = """
-            data:{"type":"meta","data":"claude-opus-5-5"}
+            data:{"type":"meta","data":"test-model"}
 
             data:{"type":"upstream_reached"}
 
@@ -290,6 +290,70 @@ class AsterAgentTest {
         var err = events.stream().filter(AgUiEvent.RunError.class::isInstance).map(AgUiEvent.RunError.class::cast)
                 .findFirst().orElseThrow();
         assertEquals("session_expired", err.code());
+    }
+
+    /** 未配置 HMAC 密钥：签名抛 IllegalStateException，必须变成本地化的 cloud_misconfigured 而非内部原文。 */
+    @Test
+    void blankHmacKeyIsLocalizedMisconfiguration() {
+        responder = sse(HAPPY_SSE);
+        var verifier = (TicketVerifier) t -> Optional.of(new TicketUser("u1", "zh"));
+        var beans = new StaticListableBeanFactory(Map.of("tickets", verifier));
+        var client = new CloudLlmClient(HttpClient.newHttpClient(),
+                "http://127.0.0.1:" + server.getAddress().getPort(),
+                new CloudRequestSigner("", Clock.systemUTC(), CloudRequestSigner.randomNonce()));
+        agent = new AsterAgent(beans.getBeanProvider(TicketVerifier.class), client, meters);
+
+        var events = run(input("any", "ask", List.of(), Message.user("q"))).events;
+        assertInstanceOf(AgUiEvent.RunStarted.class, events.get(0));
+        List<AgUiEvent.RunError> errors = events.stream().filter(AgUiEvent.RunError.class::isInstance)
+                .map(AgUiEvent.RunError.class::cast).toList();
+        assertEquals(1, errors.size());
+        assertEquals("cloud_misconfigured", errors.get(0).code());
+        assertEquals(ErrorTexts.get("zh", "cloud_misconfigured"), errors.get(0).message());
+        assertFalse(events.stream().anyMatch(AgUiEvent.RunFinished.class::isInstance));
+        assertEquals(0, seen.size());
+        assertEquals(1.0, runs("ask", "error", "cloud_misconfigured"));
+    }
+
+    /** 校验器自身故障是服务端配置问题，不是会话过期（否则刷新也无济于事，用户会陷入重试循环）。 */
+    @Test
+    void throwingVerifierIsMisconfigurationNotSessionExpiry() {
+        responder = sse(HAPPY_SSE);
+        var verifier = (TicketVerifier) t -> {
+            throw new IllegalStateException("aiw.ticket-key 无效");
+        };
+        var beans = new StaticListableBeanFactory(Map.of("tickets", verifier));
+        var signer = new CloudRequestSigner(KEY, Clock.systemUTC(), CloudRequestSigner.randomNonce());
+        agent = new AsterAgent(beans.getBeanProvider(TicketVerifier.class),
+                new CloudLlmClient(HttpClient.newHttpClient(), "http://127.0.0.1:" + server.getAddress().getPort(), signer),
+                meters);
+
+        var events = run(input("any", "generate", List.of(), Message.user("q"))).events;
+        assertInstanceOf(AgUiEvent.RunStarted.class, events.get(0));
+        List<AgUiEvent.RunError> errors = events.stream().filter(AgUiEvent.RunError.class::isInstance)
+                .map(AgUiEvent.RunError.class::cast).toList();
+        assertEquals(1, errors.size());
+        assertEquals("cloud_misconfigured", errors.get(0).code());
+        assertEquals(ErrorTexts.get("en", "cloud_misconfigured"), errors.get(0).message());
+        assertFalse(events.stream().anyMatch(AgUiEvent.RunFinished.class::isInstance));
+        assertEquals(0, seen.size());
+        assertEquals(1.0, runs("generate", "error", "cloud_misconfigured"));
+    }
+
+    /** 非法 aiw.cloud-url（URI.create 抛异常）同样归为 cloud_misconfigured。 */
+    @Test
+    void invalidCloudUrlIsMisconfiguration() {
+        var verifier = (TicketVerifier) t -> Optional.of(new TicketUser("u1", "de"));
+        var beans = new StaticListableBeanFactory(Map.of("tickets", verifier));
+        var signer = new CloudRequestSigner(KEY, Clock.systemUTC(), CloudRequestSigner.randomNonce());
+        agent = new AsterAgent(beans.getBeanProvider(TicketVerifier.class),
+                new CloudLlmClient(HttpClient.newHttpClient(), "not a url", signer), meters);
+        var events = run(input("any", "ask", List.of(), Message.user("q"))).events;
+        var err = events.stream().filter(AgUiEvent.RunError.class::isInstance).map(AgUiEvent.RunError.class::cast)
+                .findFirst().orElseThrow();
+        assertEquals("cloud_misconfigured", err.code());
+        assertEquals(ErrorTexts.get("de", "cloud_misconfigured"), err.message());
+        assertEquals(1.0, runs("ask", "error", "cloud_misconfigured"));
     }
 
     @Test

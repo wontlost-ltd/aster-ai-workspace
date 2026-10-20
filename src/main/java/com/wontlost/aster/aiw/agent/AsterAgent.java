@@ -8,6 +8,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -35,6 +37,8 @@ public class AsterAgent implements AgUiAgent {
     static final String SESSION_EXPIRED = "session_expired";
     static final String NETWORK = "network";
     static final String UNKNOWN = "unknown";
+    static final String MISCONFIGURED = "cloud_misconfigured";
+    private static final Logger LOG = LoggerFactory.getLogger(AsterAgent.class);
 
     private final ObjectProvider<TicketVerifier> tickets;
     private final CloudLlmClient cloud;
@@ -68,15 +72,38 @@ public class AsterAgent implements AgUiAgent {
                 "outcome", outcome.outcome(), "code", outcome.code()).increment();
     }
 
+    /**
+     * run 的唯一兜底点：票据校验与 cloud 调用中的任何非受检异常（未配置 HMAC 密钥、非法 cloud 地址、
+     * 校验器故障等）都属于服务端配置问题，记 ERROR 日志并以本地化的 cloud_misconfigured 结束，
+     * 不把内部异常原文透给用户。
+     */
     private Outcome execute(RunAgentInput input, AgUiEmitter emitter) {
-        Optional<TicketUser> user = verify(input);
+        Optional<TicketUser> user;
+        try {
+            user = verify(input);
+        } catch (RuntimeException e) {
+            return misconfigured(emitter, null, input, e);
+        }
         if (user.isEmpty()) {
             return fail(emitter, ErrorTexts.get(null, SESSION_EXPIRED), SESSION_EXPIRED);
         }
-        return switch (RunRequestBuilder.build(input, user.get())) {
+        try {
+            return dispatch(input, user.get(), emitter);
+        } catch (RuntimeException e) {
+            return misconfigured(emitter, user.get().locale(), input, e);
+        }
+    }
+
+    private Outcome dispatch(RunAgentInput input, TicketUser user, AgUiEmitter emitter) {
+        return switch (RunRequestBuilder.build(input, user)) {
             case Either.Right<CloudCall, AgUiEvent.RunError> rejected -> fail(emitter, rejected.value());
-            case Either.Left<CloudCall, AgUiEvent.RunError> call -> relay(call.value(), input, user.get(), emitter);
+            case Either.Left<CloudCall, AgUiEvent.RunError> call -> relay(call.value(), input, user, emitter);
         };
+    }
+
+    private static Outcome misconfigured(AgUiEmitter emitter, String locale, RunAgentInput input, RuntimeException e) {
+        LOG.error("aster run 内部失败 (thread={}, run={})", input.threadId(), input.runId(), e);
+        return fail(emitter, ErrorTexts.get(locale, MISCONFIGURED), MISCONFIGURED);
     }
 
     private Optional<TicketUser> verify(RunAgentInput input) {

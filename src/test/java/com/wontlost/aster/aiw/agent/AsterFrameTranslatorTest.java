@@ -32,11 +32,11 @@ class AsterFrameTranslatorTest {
 
     @Test
     void metaBecomesCustomModelEvent() {
-        var ev = translator().onFrame(json("{\"type\":\"meta\",\"data\":\"claude-opus-5-5\"}"));
+        var ev = translator().onFrame(json("{\"type\":\"meta\",\"data\":\"test-model\"}"));
         assertEquals(1, ev.size());
         var custom = assertInstanceOf(AgUiEvent.Custom.class, ev.get(0));
         assertEquals("aster.model", custom.name());
-        assertEquals("claude-opus-5-5", custom.value().asString());
+        assertEquals("test-model", custom.value().asString());
     }
 
     @Test

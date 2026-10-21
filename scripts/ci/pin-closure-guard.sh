@@ -8,7 +8,7 @@
 # 输入（环境变量，由 deploy.yml 的 pin-closure-guard job 传入）：
 #   EVENT / REF / TRAIN_ID     触发信息
 #   STALE                      deploy job 的 stale（仅 push 事件会判定）
-#   CLIENT_ID                  vars.IMAGE_PIN_APP_CLIENT_ID（开 PR 用的 App 凭据）
+#   CLIENT_ID                  secrets.K3S_GITHUB_APP_ID（开 PR 用的 App 凭据，仅判断是否为空）
 #   DEPLOY_RESULT / PIN_RESULT 两个 job 的结论
 #   PINNED                     image-pin-pr 输出：开 PR 步骤成功为 true
 #   FINAL_STALE                image-pin-pr 输出：Final stale gate 判定过时为 true
@@ -46,7 +46,7 @@ fi
 
 # 该 pin 却没有凭据：开不出 PR，集群不会换版本——这是断裂，不是「原因正当」（#343）
 if [ -z "${CLIENT_ID:-}" ]; then
-  echo "::error::部署闭环断裂：本次该 pin（${why}），但未配置 vars.IMAGE_PIN_APP_CLIENT_ID，开不出 pin PR（见 k3s SETUP.md）。"
+  echo "::error::部署闭环断裂：本次该 pin（${why}），但未配置 secrets.K3S_GITHUB_APP_ID，开不出 pin PR。"
   exit 1
 fi
 

@@ -14,6 +14,8 @@ import org.springframework.mock.web.MockHttpSession;
 
 class SessionUserTest {
     private static final AiwUser ANN = new AiwUser("user-1", "Ann", null, "hi", "member");
+    /** CurrentInstance 以弱引用保存当前会话：由测试持有强引用，避免 GC 后 getCurrent() 为空。 */
+    private final VaadinSession vaadin = mock(VaadinSession.class);
 
     @AfterEach
     void clear() {
@@ -33,7 +35,6 @@ class SessionUserTest {
 
         WrappedSession wrapped = mock(WrappedSession.class);
         when(wrapped.getAttribute("aiw.user")).thenReturn(http.getAttribute("aiw.user"));
-        VaadinSession vaadin = mock(VaadinSession.class);
         when(vaadin.getSession()).thenReturn(wrapped);
         VaadinSession.setCurrent(vaadin);
 
@@ -42,7 +43,6 @@ class SessionUserTest {
 
     @Test
     void emptyWhenVaadinSessionHasNoUser() {
-        VaadinSession vaadin = mock(VaadinSession.class);
         when(vaadin.getSession()).thenReturn(mock(WrappedSession.class));
         VaadinSession.setCurrent(vaadin);
         assertTrue(SessionUser.current().isEmpty());

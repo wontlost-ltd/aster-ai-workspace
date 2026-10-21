@@ -70,5 +70,5 @@ mvn -B -ntp -Pproduction package
   ```
 
 - `.github/workflows/ci.yml` 在 PR / main 上跑 `mvn verify`；`deploy.yml` 在 main 上构建并推送 `<sha7>` 与 `latest` 标签、校验 arm64、cosign 签名验签，再向 k3s 开 image-pin PR。
-- 所需 secrets：`DOCKER_USERNAME`、`DOCKER_PASSWORD`、`IMAGE_PIN_APP_PRIVATE_KEY`，变量 `IMAGE_PIN_APP_CLIENT_ID`。
-- 注意：`com.wontlost:agui-vaadin:0.2.0` 发布到 Maven Central 之前，CI 与 deploy 的依赖解析会失败，这是预期行为；发布是人工步骤。
+- 所需 secrets：`DOCKERHUB_USERNAME`、`DOCKERHUB_TOKEN`（组织级 secrets）、`K3S_GITHUB_APP_ID`、`K3S_GITHUB_APP_PRIVATE_KEY`（均为组织级 secrets；image-pin App 需装在 wontlost-ltd/k3s）。
+- 依赖 `com.wontlost:agui-vaadin:0.2.0`（已发布到 Maven Central）。

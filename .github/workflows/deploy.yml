@@ -250,10 +250,10 @@ jobs:
   # ⚠️ 暂态（如实标注）：image-lock PR 合并后 ArgoCD 按 digest sync 一次 + 上面 rollout 一次
   # ＝同一 digest 可能多一次滚动更新，结果一致（幂等），非安全冲突。
   #
-  # 前置（人工，见 k3s SETUP.md）：本仓需配 vars.IMAGE_PIN_APP_CLIENT_ID +
-  # secrets.IMAGE_PIN_APP_PRIVATE_KEY（image-pin App id 4253193 的私钥）。未配置则本 job skip，
-  # 而该 pin 时 pin-closure-guard 会因此失败。门控与 mint token 用同一个变量（#343），
-  # 与 aster-replay-runner-deploy / aster-runner-launcher-deploy 一致。
+  # 前置：使用组织级 secrets.K3S_GITHUB_APP_ID + secrets.K3S_GITHUB_APP_PRIVATE_KEY
+  # （即 image-pin App，需装在 wontlost-ltd/k3s）。secrets 不能出现在 job 级 if:，
+  # 所以「凭据是否配置」改由下面的 Check App credentials 步骤判定：缺失则后续步骤跳过、
+  # pinned=false，该 pin 时 pin-closure-guard 会因此失败。门控与 mint token 用同一个 secret。
   # ★「该 pin」的判定（与下面 pin-closure-guard 共用同一套语义，改一处必改两处）：
   #   push 到 main            → 该 pin（原有行为）
   #   带 trainId 的 dispatch  → 该 pin（发版列车，platform#82 前它被静默跳过）
@@ -261,13 +261,13 @@ jobs:
   #
   #   另两个条件是**真实的不该 pin**，非缺陷：
   #   - stale == 'true'：github.sha 已不是 origin/main tip，开 PR 会 pin 旧 digest
-  #   - IMAGE_PIN_APP_CLIENT_ID == ''：未配 App 凭据（见 k3s SETUP.md），开不出 PR
+  #   - K3S_GITHUB_APP_ID 为空：未配 App 凭据，开不出 PR（在步骤内判定，见上）
   image-pin-pr:
     needs: deploy
     # ★两侧显式加括号：GitHub 表达式里 && 确实比 || 紧，但靠优先级读代码容易被后人误改。
     if: ${{ ((github.event_name == 'push' && github.ref == 'refs/heads/main')
              || (github.event_name == 'workflow_dispatch' && inputs.trainId != ''))
-            && needs.deploy.outputs.stale != 'true' && vars.IMAGE_PIN_APP_CLIENT_ID != '' }}
+            && needs.deploy.outputs.stale != 'true' }}
     runs-on: ubuntu-latest
     # ★步骤可以被 if: 静默跳过而 job 仍是 success（Final stale gate 判过时即如此），
     #   所以把「PR 是否真的开出」作为输出交给 pin-closure-guard，而不是让它只看 job 结论（#341）。
@@ -298,14 +298,26 @@ jobs:
           fi
         id: stalegate
 
-      - name: Mint k3s-scoped token (跨 org：App 装在 wontlost-ltd/k3s)
+      - name: Check App credentials
+        id: creds
         if: ${{ steps.stalegate.outputs.skip != 'true' }}
+        env:
+          APP_ID: ${{ secrets.K3S_GITHUB_APP_ID }}
+        run: |
+          # secrets 不能用于 job 级 if:，在此判定；缺失则后续步骤跳过，交给 pin-closure-guard 判失败。
+          if [ -z "${APP_ID}" ]; then
+            echo "::warning::未配置 secrets.K3S_GITHUB_APP_ID，开不出 image-pin PR。"
+            echo "missing=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mint k3s-scoped token (跨 org：App 装在 wontlost-ltd/k3s)
+        if: ${{ steps.stalegate.outputs.skip != 'true' && steps.creds.outputs.missing != 'true' }}
         id: k3stoken
         uses: actions/create-github-app-token@v3.2.0
         with:
-          # client-id 取代已弃用的 app-id（create-github-app-token@v3 弃用警告）。
-          client-id: ${{ vars.IMAGE_PIN_APP_CLIENT_ID }}
-          private-key: ${{ secrets.IMAGE_PIN_APP_PRIVATE_KEY }}
+          # 组织级 secret 存的是数字 App ID，故用 app-id（v3 仍支持，仅提示弃用）。
+          app-id: ${{ secrets.K3S_GITHUB_APP_ID }}
+          private-key: ${{ secrets.K3S_GITHUB_APP_PRIVATE_KEY }}
           owner: wontlost-ltd
           repositories: k3s
           permission-contents: write
@@ -315,12 +327,12 @@ jobs:
 
       # checkout 本仓以取用共享脚本（image-pin-pr 是独立 job，需自己 checkout）。
       - name: Checkout (for shared script)
-        if: ${{ steps.stalegate.outputs.skip != 'true' }}
+        if: ${{ steps.stalegate.outputs.skip != 'true' && steps.creds.outputs.missing != 'true' }}
         uses: actions/checkout@v7
 
       - name: Open/update image-pin PR to k3s
         id: openpr
-        if: ${{ steps.stalegate.outputs.skip != 'true' }}
+        if: ${{ steps.stalegate.outputs.skip != 'true' && steps.creds.outputs.missing != 'true' }}
         env:
           GH_TOKEN: ${{ steps.k3stoken.outputs.token }}
           DIGEST: ${{ needs.deploy.outputs.digest }}
@@ -360,7 +372,7 @@ jobs:
           REF: ${{ github.ref }}
           TRAIN_ID: ${{ inputs.trainId }}
           STALE: ${{ needs.deploy.outputs.stale }}
-          CLIENT_ID: ${{ vars.IMAGE_PIN_APP_CLIENT_ID }}
+          CLIENT_ID: ${{ secrets.K3S_GITHUB_APP_ID }}
           DEPLOY_RESULT: ${{ needs.deploy.result }}
           PIN_RESULT: ${{ needs.image-pin-pr.result }}
           PINNED: ${{ needs.image-pin-pr.outputs.pinned }}

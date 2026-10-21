@@ -37,7 +37,7 @@ case_ "push：开 PR 前 main 前进 → 由新 commit 接手（警告，不失�
 case_ "★job success 但 pinned 为空（步骤被其它条件跳过）→ 断裂" 1 "部署闭环断裂" PINNED=
 case_ "image-pin-pr skipped → 断裂并提示 if 条件不一致" 1 "if: 条件与本脚本" PIN_RESULT=skipped PINNED=
 case_ "image-pin-pr failure → 断裂"                 1 "部署闭环断裂" PIN_RESULT=failure PINNED=
-case_ "★该 pin 但未配 CLIENT_ID → 断裂（不再只警告）" 1 "IMAGE_PIN_APP_CLIENT_ID" CLIENT_ID= PIN_RESULT=skipped PINNED=
+case_ "★该 pin 但未配 CLIENT_ID → 断裂（不再只警告）" 1 "K3S_GITHUB_APP_ID" CLIENT_ID= PIN_RESULT=skipped PINNED=
 case_ "deploy job 过时（stale）→ 按设计不 pin"        0 "stale" STALE=true PIN_RESULT=skipped PINNED=
 case_ "deploy 未成功 → 不归本 job 管"               0 "闭环判定不适用" DEPLOY_RESULT=failure PIN_RESULT=skipped PINNED=
 case_ "手工无参 dispatch → 不该 pin"                0 "不该 pin" EVENT=workflow_dispatch TRAIN_ID= PIN_RESULT=skipped PINNED=

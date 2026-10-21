@@ -44,12 +44,13 @@ class AuditViewAccessTest {
     private final UI ui = spy(new UI());
     private final Page page = mock(Page.class);
     private final WrappedSession wrapped = mock(WrappedSession.class);
+    /** CurrentInstance 以弱引用保存当前会话：必须由测试持有强引用，否则 GC 后 getCurrent() 为空（偶发失败）。 */
+    private final VaadinSession session = mock(VaadinSession.class);
 
     @BeforeEach
     void setUp() {
         System.setProperty(License.HOME_PROPERTY, proHome.toString());
         License.configure(null);
-        VaadinSession session = mock(VaadinSession.class);
         when(session.getSession()).thenReturn(wrapped);
         VaadinSession.setCurrent(session);
         doReturn(page).when(ui).getPage();

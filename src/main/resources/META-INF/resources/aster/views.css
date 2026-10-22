@@ -1,0 +1,345 @@
+/* 工作台（/）、编辑器侧栏（/panel）与审计页（/audit）的版式与通用小部件。 */
+
+/* ---- 顶栏 ------------------------------------------------------------ */
+.aster-topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  height: 3.5rem;
+  padding: 0 1.25rem;
+  border-bottom: 1px solid var(--aster-border);
+  background: var(--aster-bg);
+  box-sizing: border-box;
+}
+.aster-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.aster-wordmark {
+  color: var(--aster-primary);
+  letter-spacing: -0.01em;
+}
+.aster-brand-section {
+  color: var(--aster-fg-subtle);
+  font-weight: 500;
+}
+.aster-topbar-spacer {
+  flex: 1 1 auto;
+}
+.aster-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  color: var(--aster-fg-muted);
+  font-weight: 500;
+}
+.aster-user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 16rem;
+}
+.aster-avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--aster-radius-full);
+  background: var(--aster-violet-100);
+  color: var(--aster-violet-700);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* 文字型（tertiary）按钮外观的链接：保留真实链接语义与目标 */
+.aster-link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 2rem;
+  padding: 0 0.625rem;
+  border-radius: var(--aster-radius-md);
+  color: var(--aster-fg-muted);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 120ms, color 120ms;
+}
+.aster-link-button:hover {
+  background: var(--aster-bg-muted);
+  color: var(--aster-fg);
+}
+.aster-link-button:focus-visible {
+  outline: 2px solid var(--aster-primary-ring);
+  outline-offset: 2px;
+}
+.aster-link-button vaadin-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* ---- 工作台主体 -------------------------------------------------------- */
+.aster-workspace-body {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+.aster-sidebar {
+  flex: 0 0 17.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 1rem 0.875rem;
+  overflow-y: auto;
+  background: var(--aster-bg-subtle);
+  border-right: 1px solid var(--aster-border);
+  box-sizing: border-box;
+}
+.aster-main {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+}
+.aster-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 860px;
+  min-height: 0;
+  padding: 1rem 1.25rem 0;
+  box-sizing: border-box;
+}
+.aster-column > agui-chat {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.aster-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+/* 粘贴策略：白底细边框，内容用等宽字体，帮助文字保留 */
+vaadin-text-area.aster-paste {
+  --vaadin-input-field-background: var(--aster-bg);
+  --vaadin-input-field-border-color: var(--aster-border-strong);
+  --vaadin-input-field-border-width: 1px;
+  --vaadin-input-field-border-radius: var(--aster-radius-md);
+  padding: 0;
+}
+vaadin-text-area.aster-paste > textarea {
+  font-family: var(--aster-font-mono);
+  font-size: 0.8125rem;
+}
+
+/* ---- 模式分段控件（RadioButtonGroup 改造，键盘方向键切换不变） -------- */
+vaadin-radio-group.aster-segmented {
+  padding: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+vaadin-radio-group.aster-segmented::part(group-field) {
+  display: inline-flex;
+  flex-flow: row nowrap;
+  gap: 0.125rem;
+  padding: 0.1875rem;
+  border: 1px solid var(--aster-border);
+  border-radius: var(--aster-radius-full);
+  background: var(--aster-bg-muted);
+}
+vaadin-radio-group.aster-segmented > vaadin-radio-button {
+  display: block;
+  position: relative;
+  flex: 0 0 auto;
+  padding: 0;
+  border-radius: var(--aster-radius-full);
+  transition: background-color 120ms, color 120ms, box-shadow 120ms;
+}
+vaadin-radio-group.aster-segmented > vaadin-radio-button::part(radio) {
+  display: none;
+}
+/* 原生 radio 铺满整颗分段，点击任意位置都能选中，同时保留其可访问性语义 */
+vaadin-radio-group.aster-segmented > vaadin-radio-button > input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+}
+vaadin-radio-group.aster-segmented > vaadin-radio-button > label {
+  display: block;
+  padding: 0.3125rem 0.875rem;
+  color: var(--aster-fg-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+vaadin-radio-group.aster-segmented > vaadin-radio-button:not([checked]):hover {
+  background: var(--aster-bg);
+}
+vaadin-radio-group.aster-segmented > vaadin-radio-button:not([checked]):hover > label {
+  color: var(--aster-fg);
+}
+vaadin-radio-group.aster-segmented > vaadin-radio-button[checked] {
+  background: var(--aster-primary);
+  box-shadow: 0 1px 2px rgb(24 24 27 / 0.12);
+}
+vaadin-radio-group.aster-segmented > vaadin-radio-button[checked] > label {
+  color: #ffffff;
+}
+vaadin-radio-group.aster-segmented > vaadin-radio-button[focus-ring] {
+  outline: 2px solid var(--aster-primary-ring);
+  outline-offset: 2px;
+}
+/* 侧栏里更紧凑：收小内边距，仍然整词不断行 */
+vaadin-radio-group.aster-segmented.aster-compact > vaadin-radio-button > label {
+  padding: 0.1875rem 0.625rem;
+  font-size: 0.75rem;
+}
+
+/* ---- 徽标：模型（中性）、已校验（绿）、未通过（红）、修复中（紫） ------------- */
+.aster-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--aster-border);
+  border-radius: var(--aster-radius-full);
+  background: var(--aster-bg-muted);
+  color: var(--aster-fg-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+.aster-badge[data-tone="success"] {
+  border-color: var(--aster-emerald-200);
+  background: var(--aster-emerald-50);
+  color: var(--aster-emerald-700);
+}
+.aster-badge[data-tone="danger"] {
+  border-color: var(--aster-rose-200);
+  background: var(--aster-rose-50);
+  color: var(--aster-rose-700);
+}
+.aster-badge[data-tone="primary"] {
+  border-color: var(--aster-violet-200);
+  background: var(--aster-primary-subtle);
+  color: var(--aster-violet-700);
+}
+.aster-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+/* ---- 本会话历史（无 Pro 授权时的左栏） ---------------------------------- */
+.aster-history {
+  gap: 0.5rem;
+}
+.aster-history-title {
+  color: var(--aster-fg-subtle);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0 0.25rem;
+}
+.aster-history-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.aster-history-items > vaadin-button {
+  justify-content: flex-start;
+  margin: 0;
+  color: var(--aster-fg);
+  font-weight: 400;
+}
+.aster-history-items > vaadin-button::part(label) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aster-history-items > vaadin-button:hover {
+  background: var(--aster-bg-muted);
+}
+.aster-history-items > vaadin-button.aster-current {
+  background: var(--aster-primary-subtle);
+  color: var(--aster-violet-700);
+  font-weight: 500;
+}
+.aster-history-empty {
+  color: var(--aster-fg-subtle);
+  font-size: 0.8125rem;
+  padding: 0.25rem;
+}
+
+/* ---- 编辑器侧栏（/panel，iframe 内 360–480px 宽） ---------------------------- */
+.aster-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--aster-bg);
+}
+.aster-panel-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem 0;
+}
+.aster-panel-bar > vaadin-radio-group {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.aster-panel-bar > vaadin-button {
+  flex: 0 0 auto;
+  margin: 0 0 0 auto;
+}
+.aster-panel .aster-badges {
+  padding: 0.5rem 0.75rem 0;
+}
+/* 两个徽标都隐藏时整行收起，不留空白 */
+.aster-badges:not(:has(> :not([hidden]))) {
+  display: none;
+}
+.aster-panel > agui-chat {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ---- 审计页 ------------------------------------------------------------ */
+.aster-audit-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 1rem 1.25rem;
+  box-sizing: border-box;
+}

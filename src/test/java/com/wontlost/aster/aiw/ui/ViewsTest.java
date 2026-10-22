@@ -349,4 +349,35 @@ class ViewsTest {
         stateChanged(chat, "{\"validated\":false,\"validationError\":{\"message\":\"line 3: bad\"}}");
         assertEquals("✗ 未通过校验：line 3: bad", status(view));
     }
+
+    @Test
+    void workspaceTopBarShowsTheWordmarkSectionAndUserInitial() {
+        WorkspaceView view = workspace(false);
+        enterAs(view, "", QueryParameters.empty());
+
+        assertEquals(1, spansWithText(view, TopBar.WORDMARK));
+        assertEquals(1, spansWithText(view, "工作台"));
+        assertEquals(1, spansWithText(view, "Ann"));
+        assertEquals(1, find(view, com.vaadin.flow.component.html.Span.class)
+                .filter(s -> s.hasClassName("aster-avatar") && "A".equals(s.getText())).count());
+    }
+
+    @Test
+    void initialIsTheFirstCodePointUppercased() {
+        assertEquals("A", WorkspaceView.initial("ada"));
+        assertEquals("张", WorkspaceView.initial("张三"));
+        assertEquals("?", WorkspaceView.initial(" "));
+    }
+
+    @Test
+    void panelNewChatIsAnIconButtonWithAnAccessibleNameAndTooltip() {
+        PanelView view = panel(false);
+        enterAs(view, "panel", QueryParameters.of("policyId", "p-1"));
+
+        com.vaadin.flow.component.button.Button newChat =
+                find(view, com.vaadin.flow.component.button.Button.class).findFirst().orElseThrow();
+        assertEquals("新对话", newChat.getAriaLabel().orElseThrow());
+        assertEquals("新对话", newChat.getTooltip().getText());
+        assertTrue(find(view, ModeSelector.class).findFirst().orElseThrow().getContent().hasClassName("aster-compact"));
+    }
 }

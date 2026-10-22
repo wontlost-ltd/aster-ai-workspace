@@ -50,14 +50,22 @@ public final class CloudRequestSigner {
     public Map<String, String> headers(String method, String path, String body, String userId) {
         String ts = Long.toString(clock.instant().getEpochSecond());
         String nonce = nonceGen.get();
-        String canonical = String.join("\n", method.toUpperCase(Locale.ROOT), path, ts, nonce, sha256Hex(body), userId);
+        String canonical = canonical(method, path, ts, nonce, body, userId);
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("X-Internal-Caller", CALLER);
         headers.put("X-Aster-Timestamp", ts);
         headers.put("X-Aster-Nonce", nonce);
         headers.put("X-Aster-User-Id", userId);
-        headers.put("X-Internal-Signature", hmacHex(canonical));
+        headers.put("X-Internal-Signature", hmacHex(hmacKey, canonical));
         return headers;
+    }
+
+    /**
+     * 签名原文：{@code [METHOD, path, ts, nonce, sha256hex(body), userId].join("\n")}。
+     * 两个方向（本服务 → cloud 的 LLM 调用、cloud → 本服务的 GDPR 调用）共用同一格式，只是密钥不同。
+     */
+    public static String canonical(String method, String path, String ts, String nonce, String body, String userId) {
+        return String.join("\n", method.toUpperCase(Locale.ROOT), path, ts, nonce, sha256Hex(body), userId);
     }
 
     static String sha256Hex(String body) {
@@ -69,10 +77,10 @@ public final class CloudRequestSigner {
         }
     }
 
-    /** Mac 非线程安全，每次签名新建一个；密钥未配置时在调用时报错而不是阻止启动。 */
-    private String hmacHex(String canonical) {
+    /** Mac 非线程安全，每次签名新建一个；密钥未配置时在调用时报错而不是阻止启动。小写 hex。 */
+    public static String hmacHex(String hmacKey, String canonical) {
         if (hmacKey == null || hmacKey.isBlank()) {
-            throw new IllegalStateException("aiw.hmac-key 未配置，无法签名 cloud 请求");
+            throw new IllegalStateException("HMAC 密钥未配置，无法签名");
         }
         try {
             Mac mac = Mac.getInstance("HmacSHA256");

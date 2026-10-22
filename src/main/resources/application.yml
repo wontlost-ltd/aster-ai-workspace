@@ -32,6 +32,8 @@ aiw:
   hmac-key: ${AIW_HMAC_KEY:}
   handoff-public-key: ${AIW_HANDOFF_PUBLIC_KEY:}
   ticket-key: ${AIW_TICKET_KEY:}
+  # cloud → 本服务 GDPR 导出 / 清除调用的 HMAC 密钥，与 cloud 的 AI_WORKSPACE_GDPR_HMAC_KEY 相同；未设置时两个端点返回 503
+  gdpr-hmac-key: ${AIW_GDPR_HMAC_KEY:}
   retention-days: ${AIW_RETENTION_DAYS:180}
   retention:
     cron: "0 17 3 * * *"

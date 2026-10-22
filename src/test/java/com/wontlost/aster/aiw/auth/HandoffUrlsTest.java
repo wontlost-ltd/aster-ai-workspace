@@ -20,4 +20,12 @@ class HandoffUrlsTest {
         assertEquals("/", HandoffUrls.safeNext("https://evil.test"));
         assertEquals("/", HandoffUrls.safeNext(null));
     }
+
+    @Test
+    void dashboardUsesCloudLocaleRoute() {
+        assertEquals("https://aster-lang.cloud/zh/dashboard", HandoffUrls.dashboard("https://aster-lang.cloud", "zh"));
+        assertEquals("https://aster-lang.cloud/hi/dashboard", HandoffUrls.dashboard("https://aster-lang.cloud/", "hi"));
+        assertEquals("https://aster-lang.cloud/en/dashboard", HandoffUrls.dashboard("https://aster-lang.cloud", "fr"));
+        assertEquals("https://aster-lang.cloud/en/dashboard", HandoffUrls.dashboard("https://aster-lang.cloud", null));
+    }
 }

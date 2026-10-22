@@ -54,8 +54,8 @@
   width: 1.75rem;
   height: 1.75rem;
   border-radius: var(--aster-radius-full);
-  background: var(--aster-violet-100);
-  color: var(--aster-violet-700);
+  background: light-dark(var(--aster-violet-100), rgb(139 92 246 / 0.25));
+  color: var(--aster-primary-text);
   font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1;
@@ -164,7 +164,7 @@
     inset: 0 auto 0 0;
     z-index: 2;
     width: min(20rem, 85vw);
-    box-shadow: var(--aster-shadow-lg, 0 10px 15px -3px rgb(9 9 11 / 0.08));
+    box-shadow: var(--aster-shadow-lg);
     transform: translateX(-100%);
     /* 收起时同时移出 Tab 顺序与读屏树 */
     visibility: hidden;
@@ -262,7 +262,7 @@ vaadin-radio-group.aster-segmented > vaadin-radio-button[checked] {
   box-shadow: 0 1px 2px rgb(24 24 27 / 0.12);
 }
 vaadin-radio-group.aster-segmented > vaadin-radio-button[checked] > label {
-  color: #ffffff;
+  color: var(--aster-primary-fg);
 }
 vaadin-radio-group.aster-segmented > vaadin-radio-button[focus-ring] {
   outline: 2px solid var(--aster-primary-ring);
@@ -294,19 +294,19 @@ vaadin-radio-group.aster-segmented.aster-compact > vaadin-radio-button > label {
   box-sizing: border-box;
 }
 .aster-badge[data-tone="success"] {
-  border-color: var(--aster-emerald-200);
-  background: var(--aster-emerald-50);
-  color: var(--aster-emerald-700);
+  border-color: var(--aster-success-border);
+  background: var(--aster-success-subtle);
+  color: var(--aster-success-text);
 }
 .aster-badge[data-tone="danger"] {
-  border-color: var(--aster-rose-200);
-  background: var(--aster-rose-50);
-  color: var(--aster-rose-700);
+  border-color: var(--aster-danger-border);
+  background: var(--aster-danger-subtle);
+  color: var(--aster-danger-text);
 }
 .aster-badge[data-tone="primary"] {
-  border-color: var(--aster-violet-200);
+  border-color: var(--aster-primary-border);
   background: var(--aster-primary-subtle);
-  color: var(--aster-violet-700);
+  color: var(--aster-primary-text);
 }
 .aster-badges {
   display: flex;
@@ -349,7 +349,7 @@ vaadin-radio-group.aster-segmented.aster-compact > vaadin-radio-button > label {
 }
 .aster-history-items > vaadin-button.aster-current {
   background: var(--aster-primary-subtle);
-  color: var(--aster-violet-700);
+  color: var(--aster-primary-text);
   font-weight: 500;
 }
 .aster-history-empty {

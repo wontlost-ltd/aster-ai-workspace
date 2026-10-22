@@ -1,8 +1,10 @@
 package com.wontlost.aster.aiw.pro;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.time.Duration;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -92,23 +94,59 @@ class LocalRedactorTest {
         assertEquals(out, redactor.redact(in));
     }
 
-    /** 对抗输入（+ 后接长数字串、长分组串）必须线性完成：原子组之前 96 KB 输入要 1 秒以上。 */
+    /**
+     * 对抗输入（+ 后接长数字串、长分组串）上电话正则必须保持线性：以匹配器读取字符的次数衡量工作量，
+     * 与机器快慢无关（CI 上按耗时断言会抖动）。改用原子组之前，第一组输入每字符要读 800 次以上，
+     * 现在不超过个位数；上限取 50 留足余量，又能稳定抓住回溯失控。
+     */
     @Test
-    void adversarialInputsFinishQuickly() {
+    void adversarialInputsStayLinear() {
+        Pattern phone = Pattern.compile(LocalRedactor.PHONE);
         String[] inputs = {
-            (" +" + "1".repeat(30)).repeat(3000),
+            (" +" + "1".repeat(30)).repeat(1000),
             (" +1" + " 1".repeat(40)).repeat(1000),
             (" +1 (" + "2".repeat(4) + ")" + "-3".repeat(30)).repeat(1000),
             ("138 " + "0013 ".repeat(20)).repeat(1000),
         };
         for (String input : inputs) {
-            redactor.redact(input);
+            CountingSequence seq = new CountingSequence(input);
+            Matcher m = phone.matcher(seq);
+            while (m.find()) {
+                // 只统计扫描全文的工作量
+            }
+            double perChar = (double) seq.reads / input.length();
+            assertTrue(perChar < 50, input.length() + " 字符平均每字符读取 " + perChar + " 次");
         }
-        for (String input : inputs) {
-            long start = System.nanoTime();
-            redactor.redact(input);
-            long ms = Duration.ofNanos(System.nanoTime() - start).toMillis();
-            org.junit.jupiter.api.Assertions.assertTrue(ms < 100, input.length() + " 字符耗时 " + ms + " ms");
+    }
+
+    /** 记录 charAt 调用次数的字符序列：正则引擎的回溯都会体现为重复读取。 */
+    private static final class CountingSequence implements CharSequence {
+        private final String text;
+        private long reads;
+
+        CountingSequence(String text) {
+            this.text = text;
+        }
+
+        @Override
+        public char charAt(int index) {
+            reads++;
+            return text.charAt(index);
+        }
+
+        @Override
+        public int length() {
+            return text.length();
+        }
+
+        @Override
+        public CharSequence subSequence(int start, int end) {
+            return text.subSequence(start, end);
+        }
+
+        @Override
+        public String toString() {
+            return text;
         }
     }
 }

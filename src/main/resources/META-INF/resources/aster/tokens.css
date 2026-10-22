@@ -1,0 +1,161 @@
+/*
+ * Aster 设计令牌（与 aster-cloud 的 @aster-cloud/tokens 取值一致），并映射到 Lumo 与 <agui-chat> 的变量。
+ * 只做浅色：Lumo 25 用 light-dark() 跟随系统，这里固定 color-scheme，避免系统暗色时与令牌错配。
+ */
+@font-face {
+  font-family: "Inter";
+  src: url("fonts/inter-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("fonts/jetbrains-mono-latin.woff2") format("woff2");
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+html {
+  color-scheme: light;
+
+  /* 原始色阶（cloud tokens.css） */
+  --aster-violet-50: #f5f3ff;
+  --aster-violet-100: #ede9fe;
+  --aster-violet-200: #ddd6fe;
+  --aster-violet-500: #8b5cf6;
+  --aster-violet-600: #7c3aed;
+  --aster-violet-700: #6d28d9;
+  --aster-zinc-50: #fafafa;
+  --aster-zinc-100: #f4f4f5;
+  --aster-zinc-200: #e4e4e7;
+  --aster-zinc-300: #d4d4d8;
+  --aster-zinc-400: #a1a1aa;
+  --aster-zinc-500: #71717a;
+  --aster-zinc-600: #52525b;
+  --aster-zinc-700: #3f3f46;
+  --aster-zinc-900: #18181b;
+  --aster-emerald-50: #ecfdf5;
+  --aster-emerald-200: #a7f3d0;
+  --aster-emerald-700: #047857;
+  --aster-amber-50: #fffbeb;
+  --aster-amber-200: #fde68a;
+  --aster-amber-700: #b45309;
+  --aster-rose-50: #fff1f2;
+  --aster-rose-200: #fecdd3;
+  --aster-rose-700: #be123c;
+
+  /* 语义角色 */
+  --aster-primary: var(--aster-violet-600);
+  --aster-primary-hover: var(--aster-violet-700);
+  --aster-primary-subtle: var(--aster-violet-50);
+  --aster-primary-ring: var(--aster-violet-500);
+  --aster-bg: #ffffff;
+  --aster-bg-subtle: var(--aster-zinc-50);
+  --aster-bg-muted: var(--aster-zinc-100);
+  --aster-fg: var(--aster-zinc-900);
+  --aster-fg-muted: var(--aster-zinc-600);
+  --aster-fg-subtle: var(--aster-zinc-500);
+  --aster-border: var(--aster-zinc-200);
+  --aster-border-strong: var(--aster-zinc-300);
+  --aster-radius-sm: 0.25rem;
+  --aster-radius-md: 0.5rem;
+  --aster-radius-lg: 0.75rem;
+  --aster-radius-full: 9999px;
+  --aster-shadow-ring: 0 0 0 3px rgb(139 92 246 / 0.35);
+  --aster-font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --aster-font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+
+  /* Lumo → Aster：主色、中性色、字体（基准 14px）、圆角 */
+  --lumo-primary-color: var(--aster-primary);
+  --lumo-primary-text-color: var(--aster-primary-hover);
+  --lumo-primary-color-50pct: rgb(124 58 237 / 0.5);
+  --lumo-primary-color-10pct: rgb(124 58 237 / 0.1);
+  --lumo-primary-contrast-color: #ffffff;
+  --lumo-base-color: var(--aster-bg);
+  --lumo-header-text-color: var(--aster-fg);
+  --lumo-body-text-color: var(--aster-fg);
+  --lumo-secondary-text-color: var(--aster-fg-muted);
+  --lumo-tertiary-text-color: var(--aster-fg-subtle);
+  --lumo-contrast-5pct: rgb(24 24 27 / 0.04);
+  --lumo-contrast-10pct: rgb(24 24 27 / 0.08);
+  --lumo-contrast-20pct: var(--aster-zinc-200);
+  --lumo-contrast-30pct: var(--aster-zinc-300);
+  --lumo-success-color: var(--aster-emerald-700);
+  --lumo-success-text-color: var(--aster-emerald-700);
+  --lumo-error-color: var(--aster-rose-700);
+  --lumo-error-text-color: var(--aster-rose-700);
+  --lumo-font-family: var(--aster-font-sans);
+  --lumo-font-size-xxs: 0.6875rem;
+  --lumo-font-size-xs: 0.75rem;
+  --lumo-font-size-s: 0.8125rem;
+  --lumo-font-size-m: 0.875rem;
+  --lumo-font-size-l: 1rem;
+  --lumo-font-size-xl: 1.125rem;
+  --lumo-border-radius-s: var(--aster-radius-sm);
+  --lumo-border-radius-m: var(--aster-radius-md);
+  --lumo-border-radius-l: var(--aster-radius-lg);
+  --vaadin-focus-ring-color: var(--aster-primary-ring);
+
+  font-family: var(--aster-font-sans);
+  font-size: 0.875rem;
+  color: var(--aster-fg);
+  background: var(--aster-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  background: var(--aster-bg);
+}
+
+/*
+ * <agui-chat>：全部经组件公开的 --agui-* 变量与 ::part 设置，不改组件本身。
+ * 用户气泡 violet-50；助手消息只留一条浅紫左线；代码块 zinc-50 + zinc-200 边框 + JetBrains Mono。
+ */
+agui-chat {
+  --agui-font-family: var(--aster-font-sans);
+  --agui-font-family-mono: var(--aster-font-mono);
+  --agui-text-color: var(--aster-fg);
+  --agui-accent-color: var(--aster-primary);
+  --agui-accent-soft: rgb(139 92 246 / 0.25);
+  --agui-accent-contrast: #ffffff;
+  --agui-muted-color: var(--aster-fg-muted);
+  --agui-faint-color: var(--aster-fg-subtle);
+  --agui-hairline: var(--aster-border);
+  --agui-surface: var(--aster-bg);
+  --agui-surface-2: var(--aster-bg-subtle);
+  --agui-code-background: var(--aster-bg-subtle);
+  --agui-user-bubble-background: var(--aster-primary-subtle);
+  --agui-assistant-rule: var(--aster-violet-200);
+  --agui-bubble-radius: var(--aster-radius-lg);
+  --agui-success-color: var(--aster-emerald-700);
+  --agui-error-color: var(--aster-rose-700);
+  --agui-focus-ring: var(--aster-primary-ring);
+  /* 代码块动作按钮的边框色只读这个 Lumo 变量；限定在聊天组件内，不影响其它组件 */
+  --lumo-contrast-20pct: var(--aster-border-strong);
+  background: var(--aster-bg);
+}
+
+/* 代码块动作条：整颗按钮换行、靠左对齐、与代码块拉开间距；按钮继承这里的字色与字重 */
+agui-chat::part(code-actions) {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.375rem;
+  margin: 0.375rem 0 0.75rem;
+  color: var(--aster-zinc-700);
+  font-weight: 500;
+}
+
+/* Pro 会话侧栏：选中态与强调色走 Aster 紫 */
+.agui-conv {
+  --agui-conv-hairline: var(--aster-border);
+  --agui-conv-selected: var(--aster-primary-subtle);
+  --agui-conv-accent: var(--aster-primary);
+}
+.agui-conv-search {
+  --vaadin-input-field-background: var(--aster-bg);
+  --vaadin-input-field-border-color: var(--aster-border);
+  --vaadin-input-field-border-width: 1px;
+}

@@ -12,7 +12,7 @@ import java.util.function.Function;
 
 /**
  * 无 Pro 会话授权时工作台左栏：本会话内的对话列表 + 新对话。每次运行结束、切换或新建后重绘，
- * 当前线程以对比色标出。
+ * 当前线程以浅紫底色与 {@code aria-current} 标出。
  */
 final class SessionHistoryList extends Composite<VerticalLayout> {
     private final SessionHistory history;
@@ -33,8 +33,13 @@ final class SessionHistoryList extends Composite<VerticalLayout> {
         newChat.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
         newChat.setWidthFull();
         items.setWidthFull();
+        items.addClassName("aster-history-items");
+        Span title = new Span(texts.apply("history.title"));
+        title.addClassName("aster-history-title");
         getContent().setPadding(false);
-        getContent().add(new Span(texts.apply("history.title")), newChat, items);
+        getContent().setSpacing(false);
+        getContent().addClassName("aster-history");
+        getContent().add(newChat, title, items);
         chat.addRunFinishedListener(e -> refresh());
         refresh();
     }
@@ -42,7 +47,9 @@ final class SessionHistoryList extends Composite<VerticalLayout> {
     void refresh() {
         items.removeAll();
         if (history.threadIds().isEmpty()) {
-            items.add(new Span(texts.apply("history.empty")));
+            Span empty = new Span(texts.apply("history.empty"));
+            empty.addClassName("aster-history-empty");
+            items.add(empty);
             return;
         }
         for (String threadId : history.threadIds()) {
@@ -55,8 +62,12 @@ final class SessionHistoryList extends Composite<VerticalLayout> {
             binding.restore(threadId);
             refresh();
         });
-        button.addThemeVariants(current ? ButtonVariant.LUMO_CONTRAST : ButtonVariant.LUMO_TERTIARY);
+        button.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
         button.setWidthFull();
+        if (current) {
+            button.addClassName("aster-current");
+            button.getElement().setAttribute("aria-current", "true");
+        }
         return button;
     }
 }

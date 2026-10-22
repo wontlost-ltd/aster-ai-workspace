@@ -1,8 +1,6 @@
 package com.wontlost.aster.aiw.ui;
 
-import com.vaadin.flow.component.html.Anchor;
-import com.vaadin.flow.component.html.H1;
-import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
@@ -38,6 +36,9 @@ public class AuditView extends VerticalLayout implements BeforeEnterObserver {
         this.trail = trail;
         this.props = props;
         setSizeFull();
+        setPadding(false);
+        setSpacing(false);
+        setDefaultHorizontalComponentAlignment(Alignment.STRETCH);
     }
 
     @Override
@@ -63,13 +64,8 @@ public class AuditView extends VerticalLayout implements BeforeEnterObserver {
         AuditExplorer explorer = new AuditExplorer(trail, user::userId, () -> null);
         explorer.setI18n(I18nBeans.fill(new AuditExplorerI18n(), "audit.", texts));
 
-        H1 title = new H1(texts.apply("audit.title"));
-        title.getStyle().set("font-size", "var(--lumo-font-size-xl)").set("margin", "0");
-        Anchor back = new Anchor("", texts.apply("audit.back"));
-        HorizontalLayout header = new HorizontalLayout(title, back);
-        header.setWidthFull();
-        header.setAlignItems(Alignment.BASELINE);
-        header.expand(title);
+        Div header = TopBar.of(texts.apply("audit.title"), TopBar.backLink("", texts.apply("audit.back")));
+        explorer.addClassName("aster-audit-body");
         add(header, explorer);
         setFlexGrow(1, explorer);
     }

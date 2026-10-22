@@ -4,9 +4,8 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dependency.JsModule;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.component.orderedlayout.FlexComponent;
-import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
@@ -48,6 +47,8 @@ public class PanelView extends VerticalLayout implements BeforeEnterObserver {
         setSizeFull();
         setPadding(false);
         setSpacing(false);
+        setDefaultHorizontalComponentAlignment(Alignment.STRETCH);
+        addClassName("aster-panel");
     }
 
     @Override
@@ -68,22 +69,21 @@ public class PanelView extends VerticalLayout implements BeforeEnterObserver {
         TicketExpiry.watch(chat, user, chats, texts.apply(TicketExpiry.RENEWED_KEY),
                 () -> UI.getCurrent().getPage().executeJs("window.asterBridge.reauth()"));
 
-        ModeSelector modes = new ModeSelector(Mode.SUGGEST, texts);
+        ModeSelector modes = new ModeSelector(Mode.SUGGEST, texts).compact();
         modes.addModeChangeListener(mode -> ChatFactory.switchMode(chat, mode));
-        Button newChat = new Button(texts.apply("panel.newChat"), VaadinIcon.PLUS.create(),
-                e -> history.newConversation());
-        newChat.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
-        HorizontalLayout labels = new HorizontalLayout(new ModelLabel(chat, texts.apply(ModelLabel.KEY)),
-                new StatusLabel(chat, texts));
-        labels.setSpacing(true);
-        HorizontalLayout bar = new HorizontalLayout(modes, labels, newChat);
-        bar.setWidthFull();
-        bar.setPadding(true);
-        bar.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
-        bar.setAlignItems(FlexComponent.Alignment.CENTER);
+        String newChatText = texts.apply("panel.newChat");
+        Button newChat = new Button(VaadinIcon.PLUS.create(), e -> history.newConversation());
+        newChat.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_ICON, ButtonVariant.LUMO_SMALL);
+        newChat.setAriaLabel(newChatText);
+        newChat.setTooltipText(newChatText);
+        // 第一行：模式分段（空间不足时横向滚动）+ 右侧「新对话」图标按钮
+        Div bar = new Div(modes, newChat);
+        bar.addClassName("aster-panel-bar");
+        // 第二行：模型与校验徽标，按整颗徽标换行；都隐藏时整行收起
+        Div badges = new Div(new ModelLabel(chat, texts.apply(ModelLabel.KEY)), new StatusLabel(chat, texts));
+        badges.addClassName("aster-badges");
 
-        chat.setSizeFull();
-        add(bar, chat);
+        add(bar, badges, chat);
         setFlexGrow(1, chat);
         getElement().executeJs("window.asterBridge.init($0, $1, $2)", chat.getElement(), props.cloudOrigin(), policyId);
     }

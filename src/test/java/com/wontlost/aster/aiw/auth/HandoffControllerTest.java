@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.wontlost.aster.aiw.config.AiwProperties;
+import com.wontlost.aster.aiw.web.ColorSchemePreference;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -76,6 +77,36 @@ class HandoffControllerTest {
         assertNotSame(old, fresh);
         assertNull(fresh.getAttribute(VAADIN_ATTR));
         assertEquals("user-1", ((AiwUser) fresh.getAttribute(SessionUser.ATTRIBUTE)).userId());
+    }
+
+    /** 亮 / 暗偏好随交接参数记进会话；换账号作废旧会话时偏好仍保留（它属于浏览器）。 */
+    @Test
+    void themeParameterIsRememberedAndSurvivesAnAccountSwitch() throws Exception {
+        MvcResult r = mvcAt(NOW + 5)
+                .perform(get("/handoff").param("token", token("j-t1")).param("next", "/").param("theme", "dark"))
+                .andExpect(redirectedUrl("/"))
+                .andExpect(request().sessionAttribute(ColorSchemePreference.ATTRIBUTE, "dark"))
+                .andReturn();
+
+        var old = new MockHttpSession();
+        SessionUser.set(old, new AiwUser("someone-else", "Bob", null, "en", "member"));
+        old.setAttribute(ColorSchemePreference.ATTRIBUTE, "light");
+        MvcResult switched = mvcAt(NOW + 5)
+                .perform(get("/handoff").session(old).param("token", token("j-t2")).param("next", "/"))
+                .andReturn();
+        assertTrue(old.isInvalid());
+        assertEquals("light", switched.getRequest().getSession(false).getAttribute(ColorSchemePreference.ATTRIBUTE));
+        assertNotSame(r.getRequest().getSession(false), switched.getRequest().getSession(false));
+    }
+
+    @Test
+    void unknownThemeValueIsIgnored() throws Exception {
+        var session = new MockHttpSession();
+        session.setAttribute(ColorSchemePreference.ATTRIBUTE, "dark");
+        mvcAt(NOW + 5)
+                .perform(get("/handoff").session(session).param("token", token("j-t3")).param("next", "/")
+                        .param("theme", "<script>"))
+                .andExpect(request().sessionAttribute(ColorSchemePreference.ATTRIBUTE, "dark"));
     }
 
     /** 同一用户重新交接：沿用会话（Vaadin 状态保留），只更换会话 id。 */

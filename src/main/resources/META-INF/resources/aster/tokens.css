@@ -1,6 +1,10 @@
 /*
- * Aster 设计令牌（与 aster-cloud 的 @aster-cloud/tokens 取值一致），并映射到 Lumo 与 <agui-chat> 的变量。
- * 只做浅色：Lumo 25 用 light-dark() 跟随系统，这里固定 color-scheme，避免系统暗色时与令牌错配。
+ * Aster 设计令牌（与 aster-cloud 的 @aster-cloud/tokens 取值一致，含其深色值），并映射到 Lumo 与 <agui-chat> 的变量。
+ *
+ * 亮 / 暗：语义角色一律写成 light-dark(浅色, 深色)，随 <html> 的 color-scheme 取值。color-scheme 与
+ * theme 属性由服务端在首屏 HTML 上写好（ColorSchemeBootstrap）：?theme=dark|light 或会话里记住的选择，
+ * 否则为 Vaadin 的「跟随系统」（theme="light-dark"，color-scheme: light dark，即 prefers-color-scheme）。
+ * 原始色阶只在下面定义语义角色时使用，样式里一律引用语义角色。
  */
 @font-face {
   font-family: "Inter";
@@ -17,13 +21,14 @@
   font-display: swap;
 }
 
-html {
-  color-scheme: light;
-
+/* html:root 的优先级高于 Lumo 的 [theme~=dark]，保证暗色下仍是 Aster 的映射而不是 Lumo 自带的深蓝 */
+html:root {
   /* 原始色阶（cloud tokens.css） */
   --aster-violet-50: #f5f3ff;
   --aster-violet-100: #ede9fe;
   --aster-violet-200: #ddd6fe;
+  --aster-violet-300: #c4b5fd;
+  --aster-violet-400: #a78bfa;
   --aster-violet-500: #8b5cf6;
   --aster-violet-600: #7c3aed;
   --aster-violet-700: #6d28d9;
@@ -35,57 +40,79 @@ html {
   --aster-zinc-500: #71717a;
   --aster-zinc-600: #52525b;
   --aster-zinc-700: #3f3f46;
+  --aster-zinc-800: #27272a;
   --aster-zinc-900: #18181b;
+  --aster-zinc-950: #09090b;
   --aster-emerald-50: #ecfdf5;
   --aster-emerald-200: #a7f3d0;
+  --aster-emerald-300: #6ee7b7;
+  --aster-emerald-500: #10b981;
   --aster-emerald-700: #047857;
   --aster-amber-50: #fffbeb;
   --aster-amber-200: #fde68a;
+  --aster-amber-300: #fcd34d;
   --aster-amber-700: #b45309;
   --aster-rose-50: #fff1f2;
   --aster-rose-200: #fecdd3;
+  --aster-rose-300: #fda4af;
+  --aster-rose-500: #f43f5e;
   --aster-rose-700: #be123c;
 
-  /* 语义角色 */
-  --aster-primary: var(--aster-violet-600);
-  --aster-primary-hover: var(--aster-violet-700);
-  --aster-primary-subtle: var(--aster-violet-50);
-  --aster-primary-ring: var(--aster-violet-500);
-  --aster-bg: #ffffff;
-  --aster-bg-subtle: var(--aster-zinc-50);
-  --aster-bg-muted: var(--aster-zinc-100);
-  --aster-fg: var(--aster-zinc-900);
-  --aster-fg-muted: var(--aster-zinc-600);
-  --aster-fg-subtle: var(--aster-zinc-500);
-  --aster-border: var(--aster-zinc-200);
-  --aster-border-strong: var(--aster-zinc-300);
+  /* 语义角色：light-dark(浅色, 深色)，深色取值同 cloud [data-theme="dark"]（主色 violet-400，主色上的字为 zinc-950） */
+  --aster-primary: light-dark(var(--aster-violet-600), var(--aster-violet-400));
+  --aster-primary-hover: light-dark(var(--aster-violet-700), var(--aster-violet-300));
+  --aster-primary-subtle: light-dark(var(--aster-violet-50), rgb(139 92 246 / 0.18));
+  --aster-primary-ring: light-dark(var(--aster-violet-500), var(--aster-violet-400));
+  --aster-primary-fg: light-dark(#ffffff, var(--aster-zinc-950));
+  /* 浅紫底上的紫字（徽标、头像、选中项） */
+  --aster-primary-text: light-dark(var(--aster-violet-700), var(--aster-violet-300));
+  --aster-primary-border: light-dark(var(--aster-violet-200), rgb(139 92 246 / 0.4));
+  --aster-bg: light-dark(#ffffff, var(--aster-zinc-950));
+  --aster-bg-subtle: light-dark(var(--aster-zinc-50), var(--aster-zinc-900));
+  --aster-bg-muted: light-dark(var(--aster-zinc-100), var(--aster-zinc-800));
+  --aster-fg: light-dark(var(--aster-zinc-900), var(--aster-zinc-50));
+  --aster-fg-muted: light-dark(var(--aster-zinc-600), var(--aster-zinc-300));
+  --aster-fg-subtle: light-dark(var(--aster-zinc-500), var(--aster-zinc-400));
+  --aster-border: light-dark(var(--aster-zinc-200), var(--aster-zinc-800));
+  --aster-border-strong: light-dark(var(--aster-zinc-300), var(--aster-zinc-700));
+  /* 状态色：浅色为 *-50 底 + *-700 字，深色为半透明底 + *-300 字（均过 AA） */
+  --aster-success-text: light-dark(var(--aster-emerald-700), var(--aster-emerald-300));
+  --aster-success-subtle: light-dark(var(--aster-emerald-50), rgb(16 185 129 / 0.12));
+  --aster-success-border: light-dark(var(--aster-emerald-200), rgb(16 185 129 / 0.35));
+  --aster-warning-text: light-dark(var(--aster-amber-700), var(--aster-amber-300));
+  --aster-warning-subtle: light-dark(var(--aster-amber-50), rgb(245 158 11 / 0.12));
+  --aster-warning-border: light-dark(var(--aster-amber-200), rgb(245 158 11 / 0.35));
+  --aster-danger-text: light-dark(var(--aster-rose-700), var(--aster-rose-300));
+  --aster-danger-subtle: light-dark(var(--aster-rose-50), rgb(244 63 94 / 0.15));
+  --aster-danger-border: light-dark(var(--aster-rose-200), rgb(244 63 94 / 0.4));
   --aster-radius-sm: 0.25rem;
   --aster-radius-md: 0.5rem;
   --aster-radius-lg: 0.75rem;
   --aster-radius-full: 9999px;
-  --aster-shadow-ring: 0 0 0 3px rgb(139 92 246 / 0.35);
+  --aster-shadow-ring: 0 0 0 3px light-dark(rgb(139 92 246 / 0.35), rgb(167 139 250 / 0.45));
+  --aster-shadow-lg: 0 10px 15px -3px light-dark(rgb(9 9 11 / 0.08), rgb(0 0 0 / 0.6));
   --aster-font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --aster-font-mono: "JetBrains Mono", "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
 
   /* Lumo → Aster：主色、中性色、字体（基准 14px）、圆角 */
   --lumo-primary-color: var(--aster-primary);
   --lumo-primary-text-color: var(--aster-primary-hover);
-  --lumo-primary-color-50pct: rgb(124 58 237 / 0.5);
-  --lumo-primary-color-10pct: rgb(124 58 237 / 0.1);
-  --lumo-primary-contrast-color: #ffffff;
+  --lumo-primary-color-50pct: light-dark(rgb(124 58 237 / 0.5), rgb(167 139 250 / 0.5));
+  --lumo-primary-color-10pct: light-dark(rgb(124 58 237 / 0.1), rgb(167 139 250 / 0.14));
+  --lumo-primary-contrast-color: var(--aster-primary-fg);
   --lumo-base-color: var(--aster-bg);
   --lumo-header-text-color: var(--aster-fg);
   --lumo-body-text-color: var(--aster-fg);
   --lumo-secondary-text-color: var(--aster-fg-muted);
   --lumo-tertiary-text-color: var(--aster-fg-subtle);
-  --lumo-contrast-5pct: rgb(24 24 27 / 0.04);
-  --lumo-contrast-10pct: rgb(24 24 27 / 0.08);
-  --lumo-contrast-20pct: var(--aster-zinc-200);
-  --lumo-contrast-30pct: var(--aster-zinc-300);
-  --lumo-success-color: var(--aster-emerald-700);
-  --lumo-success-text-color: var(--aster-emerald-700);
-  --lumo-error-color: var(--aster-rose-700);
-  --lumo-error-text-color: var(--aster-rose-700);
+  --lumo-contrast-5pct: light-dark(rgb(24 24 27 / 0.04), rgb(250 250 250 / 0.05));
+  --lumo-contrast-10pct: light-dark(rgb(24 24 27 / 0.08), rgb(250 250 250 / 0.1));
+  --lumo-contrast-20pct: var(--aster-border);
+  --lumo-contrast-30pct: var(--aster-border-strong);
+  --lumo-success-color: light-dark(var(--aster-emerald-700), var(--aster-emerald-500));
+  --lumo-success-text-color: var(--aster-success-text);
+  --lumo-error-color: light-dark(var(--aster-rose-700), var(--aster-rose-500));
+  --lumo-error-text-color: var(--aster-danger-text);
   --lumo-font-family: var(--aster-font-sans);
   --lumo-font-size-xxs: 0.6875rem;
   --lumo-font-size-xs: 0.75rem;
@@ -119,8 +146,8 @@ agui-chat {
   --agui-font-family-mono: var(--aster-font-mono);
   --agui-text-color: var(--aster-fg);
   --agui-accent-color: var(--aster-primary);
-  --agui-accent-soft: rgb(139 92 246 / 0.25);
-  --agui-accent-contrast: #ffffff;
+  --agui-accent-soft: light-dark(rgb(139 92 246 / 0.25), rgb(167 139 250 / 0.3));
+  --agui-accent-contrast: var(--aster-primary-fg);
   --agui-muted-color: var(--aster-fg-muted);
   --agui-faint-color: var(--aster-fg-subtle);
   --agui-hairline: var(--aster-border);
@@ -130,8 +157,8 @@ agui-chat {
   --agui-user-bubble-background: var(--aster-primary-subtle);
   --agui-assistant-rule: transparent;
   --agui-bubble-radius: var(--aster-radius-lg);
-  --agui-success-color: var(--aster-emerald-700);
-  --agui-error-color: var(--aster-rose-700);
+  --agui-success-color: var(--aster-success-text);
+  --agui-error-color: var(--aster-danger-text);
   --agui-focus-ring: var(--aster-primary-ring);
   background: var(--aster-bg);
 }
@@ -162,7 +189,7 @@ agui-chat::part(code-action) {
   border: 1px solid var(--aster-border-strong);
   border-radius: var(--aster-radius-md);
   background: var(--aster-bg);
-  color: var(--aster-zinc-700);
+  color: light-dark(var(--aster-zinc-700), var(--aster-zinc-300));
   font-size: 0.75rem;
   font-weight: 500;
   transition: background-color 120ms, border-color 120ms, color 120ms;

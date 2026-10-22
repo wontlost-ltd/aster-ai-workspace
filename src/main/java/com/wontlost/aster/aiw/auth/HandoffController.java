@@ -1,6 +1,7 @@
 package com.wontlost.aster.aiw.auth;
 
 import com.wontlost.aster.aiw.config.AiwProperties;
+import com.wontlost.aster.aiw.web.ColorSchemePreference;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import java.net.URI;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>令牌有效、未过期且 jti 首次使用：把用户写入会话、更换会话 id（防会话固定），302 到白名单内的 next。
  * 其余情况（缺失、签名错、过期、重放）一律 302 回 cloud 的交接地址重新签发（Review Focus #1）。
+ * 可选的 {@code theme=dark|light} 记进会话，next 白名单不含它，交接后的页面由此沿用亮 / 暗（F29）。
  */
 @RestController
 public class HandoffController {
@@ -37,6 +39,7 @@ public class HandoffController {
     public ResponseEntity<Void> handoff(
             @RequestParam(name = "token", required = false) String token,
             @RequestParam(name = "next", required = false) String next,
+            @RequestParam(name = ColorSchemePreference.PARAM, required = false) String theme,
             HttpServletRequest request) {
         String target = HandoffUrls.safeNext(next);
         Optional<HandoffClaims> claims = verifier.authentic(token);
@@ -51,20 +54,29 @@ public class HandoffController {
             LOG.warn("交接令牌被拒: reason={}", rejected);
             return redirect(rehandoff(target, locale));
         }
-        SessionUser.set(sessionFor(request, c.sub()), new AiwUser(c.sub(), c.name(), c.email(), locale, c.role()));
+        HttpSession session = sessionFor(request, c.sub());
+        SessionUser.set(session, new AiwUser(c.sub(), c.name(), c.email(), locale, c.role()));
+        ColorSchemePreference.remembered(theme)
+                .ifPresent(value -> session.setAttribute(ColorSchemePreference.ATTRIBUTE, value));
         request.changeSessionId();
         return redirect(target);
     }
 
     /**
      * 会话里已是另一位用户（同一浏览器换了 cloud 账号）→ 作废旧会话再新建，旧用户的 VaadinSession 与会话历史
-     * 不会带给新用户；同一用户或匿名会话沿用（随后更换会话 id 防会话固定）。
+     * 不会带给新用户（只带过亮 / 暗偏好，它属于浏览器而非用户）；同一用户或匿名会话沿用（随后更换会话 id 防会话固定）。
      */
     private static HttpSession sessionFor(HttpServletRequest request, String userId) {
         HttpSession existing = request.getSession(false);
         if (existing != null && existing.getAttribute(SessionUser.ATTRIBUTE) instanceof AiwUser u
                 && !u.userId().equals(userId)) {
+            Object scheme = existing.getAttribute(ColorSchemePreference.ATTRIBUTE);
             existing.invalidate();
+            HttpSession fresh = request.getSession(true);
+            if (scheme != null) {
+                fresh.setAttribute(ColorSchemePreference.ATTRIBUTE, scheme);
+            }
+            return fresh;
         }
         return request.getSession(true);
     }

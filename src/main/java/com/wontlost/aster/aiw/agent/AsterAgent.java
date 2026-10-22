@@ -128,7 +128,15 @@ public class AsterAgent implements AgUiAgent {
         emitter.emit(AsterFrameTranslator.statusReset());
         try (Stream<String> lines = cloud.stream(call, user.userId(), emitter::isCancelled)) {
             emitter.onCancel(lines::close);
-            return pump(lines.iterator(), translator, user.locale(), emitter);
+            Outcome outcome = pump(lines.iterator(), translator, user.locale(), emitter);
+            if (outcome == Outcome.OK && translator.incomplete()) {
+                // 生产环境曾出现：generate 只有流式内容、没有 final 帧（因而没有校验徽标）。
+                // 带上路径与 thread / run id，便于与 cloud、aster-api 日志对照是哪一段提前关的流
+                LOG.warn("generate 流在 final 帧之前结束，按截断处理 (path={}, thread={}, run={})",
+                        call.path(), input.threadId(), input.runId());
+                meters.counter("aiw.runs.incomplete", "mode", RunRequestBuilder.Mode.GENERATE.wire()).increment();
+            }
+            return outcome;
         } catch (CloudDenied denied) {
             return fail(emitter, deniedText(user.locale(), denied), denied.code());
         } catch (IOException | UncheckedIOException e) {

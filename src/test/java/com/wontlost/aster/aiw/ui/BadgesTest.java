@@ -70,6 +70,30 @@ class BadgesTest {
     }
 
     @Test
+    void truncatedIsAWarningBadgeInsideAPermanentLiveRegion() {
+        TruncatedLabel label = new TruncatedLabel(chat, en.apply(TruncatedLabel.KEY));
+        assertTrue(label.isVisible(), "live region 常驻，不用 hidden 切换");
+        assertEquals("status", label.getElement().getAttribute("role"));
+        assertFalse(label.showing());
+        assertEquals(0, label.getElement().getChildCount());
+
+        state("{\"truncated\":true}");
+        assertTrue(label.showing());
+        assertEquals(Tone.WARNING, label.badge().getTone());
+        assertEquals("warning", label.badge().getElement().getAttribute("data-tone"));
+        assertEquals("Answer was truncated", label.badge().getText());
+        state("{\"truncated\":true}");
+        assertEquals(1, label.getElement().getChildCount(), "重复状态不重复插入");
+
+        state("{\"truncated\":null}");
+        assertFalse(label.showing());
+        state("{\"truncated\":true}");
+        ComponentUtil.fireEvent(chat, new AgUiChat.RunStartedEvent(chat, true, "t", "r2"));
+        assertFalse(label.showing());
+        assertTrue(label.isVisible());
+    }
+
+    @Test
     void modelIsANeutralBadge() {
         ModelLabel label = new ModelLabel(chat, en.apply(ModelLabel.KEY));
         state("{\"model\":\"test-model\"}");

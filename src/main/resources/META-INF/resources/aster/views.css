@@ -54,8 +54,8 @@
   width: 1.75rem;
   height: 1.75rem;
   border-radius: var(--aster-radius-full);
-  background: var(--aster-violet-100);
-  color: var(--aster-violet-700);
+  background: light-dark(var(--aster-violet-100), rgb(139 92 246 / 0.25));
+  color: var(--aster-primary-text);
   font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1;
@@ -136,6 +136,63 @@
   gap: 0.5rem 1rem;
 }
 
+/* ---- 窄屏：左栏改为抽屉（ConversationDrawer），聊天占满全宽 --------------- */
+.aster-drawer-toggle,
+.aster-drawer-backdrop {
+  display: none;
+}
+@media (max-width: 48rem) {
+  .aster-topbar {
+    gap: 0.5rem;
+    padding: 0 0.75rem;
+  }
+  /* 名字让位给返回链接，头像仍在 */
+  .aster-user-name {
+    display: none;
+  }
+  .aster-drawer-toggle {
+    display: inline-flex;
+    flex: 0 0 auto;
+    margin: 0;
+    color: var(--aster-fg-muted);
+  }
+  .aster-workspace-body {
+    position: relative;
+  }
+  .aster-sidebar {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 2;
+    width: min(20rem, 85vw);
+    box-shadow: var(--aster-shadow-lg);
+    transform: translateX(-100%);
+    /* 收起时同时移出 Tab 顺序与读屏树 */
+    visibility: hidden;
+    transition: transform 160ms ease-out, visibility 0s linear 160ms;
+  }
+  .aster-drawer-open > .aster-sidebar {
+    transform: none;
+    visibility: visible;
+    transition: transform 160ms ease-out;
+  }
+  .aster-drawer-open > .aster-drawer-backdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: rgb(9 9 11 / 0.4);
+  }
+  .aster-column {
+    padding: 0.75rem 0.75rem 0;
+  }
+}
+@media (max-width: 48rem) and (prefers-reduced-motion: reduce) {
+  .aster-sidebar,
+  .aster-drawer-open > .aster-sidebar {
+    transition: none;
+  }
+}
+
 /* 粘贴策略：白底细边框，内容用等宽字体，帮助文字保留 */
 vaadin-text-area.aster-paste {
   --vaadin-input-field-background: var(--aster-bg);
@@ -205,7 +262,7 @@ vaadin-radio-group.aster-segmented > vaadin-radio-button[checked] {
   box-shadow: 0 1px 2px rgb(24 24 27 / 0.12);
 }
 vaadin-radio-group.aster-segmented > vaadin-radio-button[checked] > label {
-  color: #ffffff;
+  color: var(--aster-primary-fg);
 }
 vaadin-radio-group.aster-segmented > vaadin-radio-button[focus-ring] {
   outline: 2px solid var(--aster-primary-ring);
@@ -217,7 +274,7 @@ vaadin-radio-group.aster-segmented.aster-compact > vaadin-radio-button > label {
   font-size: 0.75rem;
 }
 
-/* ---- 徽标：模型（中性）、已校验（绿）、未通过（红）、修复中（紫） ------------- */
+/* ---- 徽标：模型（中性）、已校验（绿）、未通过（红）、修复中（紫）、已截断（琥珀） --- */
 .aster-badge {
   display: inline-flex;
   align-items: center;
@@ -237,19 +294,24 @@ vaadin-radio-group.aster-segmented.aster-compact > vaadin-radio-button > label {
   box-sizing: border-box;
 }
 .aster-badge[data-tone="success"] {
-  border-color: var(--aster-emerald-200);
-  background: var(--aster-emerald-50);
-  color: var(--aster-emerald-700);
+  border-color: var(--aster-success-border);
+  background: var(--aster-success-subtle);
+  color: var(--aster-success-text);
 }
 .aster-badge[data-tone="danger"] {
-  border-color: var(--aster-rose-200);
-  background: var(--aster-rose-50);
-  color: var(--aster-rose-700);
+  border-color: var(--aster-danger-border);
+  background: var(--aster-danger-subtle);
+  color: var(--aster-danger-text);
+}
+.aster-badge[data-tone="warning"] {
+  border-color: var(--aster-warning-border);
+  background: var(--aster-warning-subtle);
+  color: var(--aster-warning-text);
 }
 .aster-badge[data-tone="primary"] {
-  border-color: var(--aster-violet-200);
+  border-color: var(--aster-primary-border);
   background: var(--aster-primary-subtle);
-  color: var(--aster-violet-700);
+  color: var(--aster-primary-text);
 }
 .aster-badges {
   display: flex;
@@ -292,7 +354,7 @@ vaadin-radio-group.aster-segmented.aster-compact > vaadin-radio-button > label {
 }
 .aster-history-items > vaadin-button.aster-current {
   background: var(--aster-primary-subtle);
-  color: var(--aster-violet-700);
+  color: var(--aster-primary-text);
   font-weight: 500;
 }
 .aster-history-empty {
@@ -327,8 +389,16 @@ vaadin-radio-group.aster-segmented.aster-compact > vaadin-radio-button > label {
 .aster-panel .aster-badges {
   padding: 0.5rem 0.75rem 0;
 }
-/* 两个徽标都隐藏时整行收起，不留空白 */
-.aster-badges:not(:has(> :not([hidden]))) {
+/* 常驻的空 live region（截断提示容器）移出排版、不占间距，但仍留在无障碍树里以便内容出现时被播报 */
+.aster-live:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+/* 徽标都隐藏（live region 为空）时整行收起，不留空白 */
+.aster-badges:not(:has(> :not([hidden], .aster-live:empty))) {
   display: none;
 }
 .aster-panel > agui-chat {

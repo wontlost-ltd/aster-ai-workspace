@@ -210,16 +210,82 @@ class AsterFrameTranslatorTest {
     }
 
     @Test
-    void statusResetClearsValidationAndRepairState() {
+    void statusResetClearsValidationRepairAndTruncationState() {
         var patch = AsterFrameTranslator.statusReset().delta();
-        assertEquals(3, patch.size());
+        assertEquals(4, patch.size());
         var paths = new ArrayList<String>();
         for (JsonNode op : patch) {
             assertEquals("add", op.get("op").asString());
             assertTrue(op.get("value").isNull());
             paths.add(op.get("path").asString());
         }
-        assertEquals(List.of("/validated", "/validationError", "/repair"), paths);
+        assertEquals(List.of("/validated", "/validationError", "/repair", "/truncated"), paths);
+    }
+
+    private static List<JsonNode> patches(List<AgUiEvent> events) {
+        var ops = new ArrayList<JsonNode>();
+        for (AgUiEvent e : events) {
+            if (e instanceof AgUiEvent.StateDelta d) {
+                d.delta().forEach(ops::add);
+            }
+        }
+        return ops;
+    }
+
+    @Test
+    void generateFinishWithoutFinalFlagsTruncation() {
+        var t = generator("m1");
+        t.onFrame(json("{\"type\":\"delta\",\"data\":\"Rule a.\"}"));
+        assertTrue(t.incomplete());
+        var ops = patches(t.finish());
+        assertEquals(1, ops.size());
+        assertEquals("/truncated", ops.get(0).get("path").asString());
+    }
+
+    @Test
+    void finishAfterFinalOrInSuggestDoesNotFlagTruncation() {
+        var g = generator("m1");
+        g.onFrame(json("{\"type\":\"final\",\"data\":\"R.\",\"validated\":true}"));
+        assertFalse(g.incomplete());
+        assertEquals(0, patches(g.finish()).size());
+        var s = translator("m1");
+        s.onFrame(json("{\"type\":\"delta\",\"data\":\"x\"}"));
+        assertFalse(s.incomplete());
+        assertEquals(0, patches(s.finish()).size());
+    }
+
+    @Test
+    void truncatedIsHonouredOnAnyFrameType() {
+        assertEquals("/truncated", patches(translator("m1").onFrame(
+                json("{\"type\":\"end\",\"truncated\":true}"))).get(0).get("path").asString());
+    }
+
+    @Test
+    void notValidatedFinalUsesTheFirstDiagnosticAsTheError() {
+        var ev = generator("m1").onFrame(json("{\"type\":\"final\",\"data\":\"Rule a.\",\"validated\":false,"
+                + "\"diagnostics\":[{\"message\":\"line 1: expected produce\",\"line\":1},{\"message\":\"x\"}]}"));
+        var ops = patches(ev);
+        assertEquals(2, ops.size());
+        assertEquals("/validated", ops.get(0).get("path").asString());
+        assertEquals("/validationError", ops.get(1).get("path").asString());
+        assertEquals("line 1: expected produce", ops.get(1).get("value").get("message").asString());
+    }
+
+    @Test
+    void diagnosticsAreIgnoredWhenValidatedOrEmpty() {
+        assertEquals(1, patches(generator("m1").onFrame(json(
+                "{\"type\":\"final\",\"data\":\"R.\",\"validated\":true,\"diagnostics\":[\"warn\"]}"))).size());
+        assertEquals(1, patches(generator("m1").onFrame(json(
+                "{\"type\":\"final\",\"data\":\"R.\",\"validated\":false,\"diagnostics\":[]}"))).size());
+    }
+
+    @Test
+    void truncatedFinalSetsTheTruncatedState() {
+        var ops = patches(translator("m1").onFrame(json("{\"type\":\"final\",\"data\":\"Define AUTO_APPROVE_L\",\"truncated\":true}")));
+        assertEquals(1, ops.size());
+        assertEquals("/truncated", ops.get(0).get("path").asString());
+        assertTrue(ops.get(0).get("value").asBoolean());
+        assertEquals(0, patches(translator("m1").onFrame(json("{\"type\":\"final\",\"data\":\"x\",\"truncated\":false}"))).size());
     }
 
     @Test

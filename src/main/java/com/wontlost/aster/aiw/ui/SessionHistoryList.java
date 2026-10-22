@@ -19,18 +19,25 @@ final class SessionHistoryList extends Composite<VerticalLayout> {
     private final HistoryBinding binding;
     private final AgUiChat chat;
     private final Function<String, String> texts;
+    /** 选中或新建对话之后的回调（窄屏下收起抽屉）。 */
+    private final Runnable picked;
     private final Div items = new Div();
 
-    SessionHistoryList(SessionHistory history, HistoryBinding binding, AgUiChat chat, Function<String, String> texts) {
+    SessionHistoryList(SessionHistory history, HistoryBinding binding, AgUiChat chat, Function<String, String> texts,
+            Runnable picked) {
         this.history = history;
         this.binding = binding;
         this.chat = chat;
         this.texts = texts;
+        this.picked = picked;
         Button newChat = new Button(texts.apply("history.newChat"), VaadinIcon.PLUS.create(), e -> {
             binding.newConversation();
             refresh();
+            picked.run();
         });
         newChat.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
+        // 显式名称：否则读屏名称会带上图标前的空白（「 新对话」）
+        newChat.setAriaLabel(texts.apply("history.newChat"));
         newChat.setWidthFull();
         items.setWidthFull();
         items.addClassName("aster-history-items");
@@ -61,6 +68,7 @@ final class SessionHistoryList extends Composite<VerticalLayout> {
         Button button = new Button(history.title(threadId), e -> {
             binding.restore(threadId);
             refresh();
+            picked.run();
         });
         button.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
         button.setWidthFull();

@@ -18,9 +18,9 @@ class CodeAwareRedactorTest {
 
     @Test
     void redactsProseButKeepsFencedCodeByteIdentical() {
-        String msg = "Contact ann@example.com for review.\n" + CODE + "Call 2026-10-20 done.";
+        String msg = "Contact ann@example.com for review.\n" + CODE + "Call +64 4 555 0192 by 2026-10-20 done.";
         String out = redactor.redact(msg);
-        assertEquals("Contact [email] for review.\n" + CODE + "Call [phone] done.", out);
+        assertEquals("Contact [email] for review.\n" + CODE + "Call [phone] by 2026-10-20 done.", out);
     }
 
     @Test

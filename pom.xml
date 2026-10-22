@@ -23,7 +23,7 @@
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <vaadin.version>25.3.0</vaadin.version>
-        <agui-vaadin.version>0.2.1</agui-vaadin.version>
+        <agui-vaadin.version>0.2.2</agui-vaadin.version>
         <agui-pro.version>0.1.2</agui-pro.version>
     </properties>
 

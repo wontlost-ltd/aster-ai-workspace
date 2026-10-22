@@ -23,4 +23,10 @@ public final class HandoffUrls {
                 + URLEncoder.encode(safeNext(next), StandardCharsets.UTF_8)
                 + "&locale=" + Locales.normalize(locale);
     }
+
+    /** 「返回 Aster Cloud」的落点：用户语言下的控制台（cloud 会话仍在，直接进入已登录页面，而非公开首页）。 */
+    public static String dashboard(String cloudUrl, String locale) {
+        String base = cloudUrl.endsWith("/") ? cloudUrl.substring(0, cloudUrl.length() - 1) : cloudUrl;
+        return base + "/" + Locales.normalize(locale) + "/dashboard";
+    }
 }

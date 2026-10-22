@@ -176,6 +176,16 @@ class ViewsTest {
     }
 
     @Test
+    void workspaceBackLinkGoesToTheCloudDashboardInTheUserLanguage() {
+        when(wrapped.getAttribute(SessionUser.ATTRIBUTE)).thenReturn(ANN);
+        WorkspaceView view = workspace(false);
+        view.beforeEnter(enter("", QueryParameters.empty()));
+
+        assertTrue(find(view, com.vaadin.flow.component.html.Anchor.class)
+                .anyMatch(a -> a.getHref().equals("https://cloud.test/zh/dashboard")));
+    }
+
+    @Test
     void workspaceShowsProSidebarWhenConversationsAreLicensed() {
         when(wrapped.getAttribute(SessionUser.ATTRIBUTE)).thenReturn(ANN);
         WorkspaceView view = workspace(true);

@@ -84,7 +84,7 @@ public class WorkspaceView extends VerticalLayout implements BeforeEnterObserver
         H1 title = new H1(texts.apply("workspace.title"));
         title.getStyle().set("font-size", "var(--lumo-font-size-xl)").set("margin", "0");
         Span who = new Span(displayName(user));
-        Anchor back = new Anchor(props.cloudUrl(), texts.apply("workspace.back"));
+        Anchor back = new Anchor(HandoffUrls.dashboard(props.cloudUrl(), user.locale()), texts.apply("workspace.back"));
         HorizontalLayout header = new HorizontalLayout(title, who, model, status, back);
         header.setWidthFull();
         header.setAlignItems(FlexComponent.Alignment.BASELINE);

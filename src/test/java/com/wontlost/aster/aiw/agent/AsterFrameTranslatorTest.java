@@ -233,6 +233,34 @@ class AsterFrameTranslatorTest {
     }
 
     @Test
+    void generateFinishWithoutFinalFlagsTruncation() {
+        var t = generator("m1");
+        t.onFrame(json("{\"type\":\"delta\",\"data\":\"Rule a.\"}"));
+        assertTrue(t.incomplete());
+        var ops = patches(t.finish());
+        assertEquals(1, ops.size());
+        assertEquals("/truncated", ops.get(0).get("path").asString());
+    }
+
+    @Test
+    void finishAfterFinalOrInSuggestDoesNotFlagTruncation() {
+        var g = generator("m1");
+        g.onFrame(json("{\"type\":\"final\",\"data\":\"R.\",\"validated\":true}"));
+        assertFalse(g.incomplete());
+        assertEquals(0, patches(g.finish()).size());
+        var s = translator("m1");
+        s.onFrame(json("{\"type\":\"delta\",\"data\":\"x\"}"));
+        assertFalse(s.incomplete());
+        assertEquals(0, patches(s.finish()).size());
+    }
+
+    @Test
+    void truncatedIsHonouredOnAnyFrameType() {
+        assertEquals("/truncated", patches(translator("m1").onFrame(
+                json("{\"type\":\"end\",\"truncated\":true}"))).get(0).get("path").asString());
+    }
+
+    @Test
     void notValidatedFinalUsesTheFirstDiagnosticAsTheError() {
         var ev = generator("m1").onFrame(json("{\"type\":\"final\",\"data\":\"Rule a.\",\"validated\":false,"
                 + "\"diagnostics\":[{\"message\":\"line 1: expected produce\",\"line\":1},{\"message\":\"x\"}]}"));

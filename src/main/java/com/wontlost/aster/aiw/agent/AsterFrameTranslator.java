@@ -50,9 +50,17 @@ final class AsterFrameTranslator {
         return finalized;
     }
 
+    /**
+     * generate 的流必须以 final 帧（含编译结论）收尾；没有 final 就结束说明流在中途被截断
+     * （上游或代理提前关流），此时界面只有流式内容、没有校验结论。
+     */
+    boolean incomplete() {
+        return codeOnly && !finalized;
+    }
+
     List<AgUiEvent> onFrame(JsonNode frame) {
         String type = frame.path("type").asString("");
-        return switch (type) {
+        List<AgUiEvent> events = switch (type) {
             case "meta" -> onMeta(frame);
             case "delta" -> onDelta(frame);
             case "repair_start" -> onRepairStart(frame);
@@ -61,11 +69,28 @@ final class AsterFrameTranslator {
             case "error" -> onError(frame);
             default -> List.of(); // upstream_reached、end 及未知帧不外发
         };
+        // 截断标记可出现在任意帧上（suggest / ask 没有 final 帧，上游可在 end 帧上带出）
+        if (frame.path("truncated").asBoolean(false)) {
+            events = new ArrayList<>(events);
+            events.add(truncatedState());
+        }
+        return events;
     }
 
-    /** 流结束时关闭仍打开的消息；RUN_FINISHED 由 agent 发出。 */
+    /**
+     * 流结束时关闭仍打开的消息；RUN_FINISHED 由 agent 发出。
+     * generate 未收到 final 帧时另发 /truncated，界面显示「回答已被截断」，不再像成功一样静默（F3）。
+     */
     List<AgUiEvent> finish() {
-        return closeCurrent();
+        List<AgUiEvent> events = closeCurrent();
+        if (incomplete()) {
+            events.add(truncatedState());
+        }
+        return events;
+    }
+
+    private static AgUiEvent.StateDelta truncatedState() {
+        return new AgUiEvent.StateDelta(addOp("/truncated", MAPPER.getNodeFactory().booleanNode(true)));
     }
 
     /** 保留 CUSTOM 事件，另以状态增量 /model 让界面经 state-changed 显示实际模型。 */
@@ -140,10 +165,6 @@ final class AsterFrameTranslator {
             if (!ok && diagnostics.isArray() && !diagnostics.isEmpty()) {
                 events.add(new AgUiEvent.StateDelta(addOp("/validationError", diagnostics.get(0))));
             }
-        }
-        // 上游因输出上限（stop reason max_tokens）截断：界面显示「回答已被截断」
-        if (frame.path("truncated").asBoolean(false)) {
-            events.add(new AgUiEvent.StateDelta(addOp("/truncated", MAPPER.getNodeFactory().booleanNode(true))));
         }
         finalized = true;
         return events;

@@ -161,6 +161,11 @@ public class AsterAgent implements AgUiAgent {
         if (tail.isPresent()) {
             return fail(emitter, localize(locale, tail.get()));
         }
+        if (translator.incomplete()) {
+            // 生产环境曾出现：generate 只有流式内容、没有 final 帧（因而没有校验徽标）。记下以便定位是哪一段关的流
+            LOG.warn("generate 流在 final 帧之前结束，按截断处理");
+            meters.counter("aiw.runs.incomplete", "mode", RunRequestBuilder.Mode.GENERATE.wire()).increment();
+        }
         translator.finish().forEach(emitter::emit);
         return Outcome.OK;
     }

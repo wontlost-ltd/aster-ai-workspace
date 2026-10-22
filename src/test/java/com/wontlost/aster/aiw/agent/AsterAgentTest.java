@@ -457,6 +457,64 @@ class AsterAgentTest {
         assertEquals("```aster\nRule a.\n```", snapshot.messages().get(snapshot.messages().size() - 1).content());
     }
 
+    private static List<String> statePaths(List<AgUiEvent> events) {
+        var paths = new java.util.ArrayList<String>();
+        events.stream().filter(AgUiEvent.StateDelta.class::isInstance).map(AgUiEvent.StateDelta.class::cast)
+                .forEach(d -> d.delta().forEach(op -> paths.add(op.get("path").asString() + "=" + op.get("value"))));
+        return paths;
+    }
+
+    /**
+     * F3 回归：生产上 generate 只显示模型徽标、没有校验徽标，复现条件是流在 final 帧之前结束
+     * （只有 meta 与 delta）。此前 agent 按成功静默结束；现在发 /truncated，界面显示「回答已被截断」。
+     */
+    @Test
+    void generateStreamThatEndsWithoutFinalIsReportedAsTruncated() {
+        responder = sse("""
+                data:{"type":"upstream_reached"}
+
+                data:{"type":"meta","data":"m-1"}
+
+                data:{"type":"delta","data":"Rule a."}
+
+                """);
+        var events = run(input("good-en", "generate", List.of(), Message.user("q"))).events;
+        List<String> paths = statePaths(events);
+        assertTrue(paths.contains("/model=\"m-1\""));
+        assertFalse(paths.stream().anyMatch(p -> p.startsWith("/validated=true") || p.startsWith("/validated=false")));
+        assertEquals("/truncated=true", paths.get(paths.size() - 1));
+        assertInstanceOf(AgUiEvent.RunFinished.class, events.get(events.size() - 1));
+        assertEquals(1.0, meters.find("aiw.runs.incomplete").tags("mode", "generate").counter().count());
+    }
+
+    @Test
+    void completeGenerateStreamIsNotTruncated() {
+        responder = sse("""
+                data:{"type":"meta","data":"m-1"}
+
+                data:{"type":"delta","data":"Rule a."}
+
+                data:{"type":"final","data":"Rule a.","validated":true}
+
+                """);
+        List<String> paths = statePaths(run(input("good-en", "generate", List.of(), Message.user("q"))).events);
+        assertTrue(paths.contains("/validated=true"));
+        assertFalse(paths.contains("/truncated=true"));
+        assertEquals(null, meters.find("aiw.runs.incomplete").counter());
+    }
+
+    @Test
+    void suggestWithoutFinalIsNormalButAnEndFrameCanFlagTruncation() {
+        responder = sse("""
+                data:{"type":"delta","data":"Define AUTO_APPROVE_L"}
+
+                data:{"type":"end","truncated":true}
+
+                """);
+        List<String> paths = statePaths(run(input("good-en", "suggest", List.of(), Message.user("q"))).events);
+        assertEquals(1, paths.stream().filter("/truncated=true"::equals).count());
+    }
+
     @Test
     void suggestResultIsNotFenced() {
         responder = sse(HAPPY_SSE);

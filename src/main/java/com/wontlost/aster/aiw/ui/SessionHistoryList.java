@@ -31,6 +31,8 @@ final class SessionHistoryList extends Composite<VerticalLayout> {
             refresh();
         });
         newChat.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SMALL);
+        // 显式名称：否则读屏名称会带上图标前的空白（「 新对话」）
+        newChat.setAriaLabel(texts.apply("history.newChat"));
         newChat.setWidthFull();
         items.setWidthFull();
         items.addClassName("aster-history-items");

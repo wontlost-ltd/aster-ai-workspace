@@ -186,6 +186,15 @@ class ViewsTest {
     }
 
     @Test
+    void sessionListNewChatHasAnExplicitAccessibleName() {
+        WorkspaceView view = workspace(false);
+        enterAs(view, "", QueryParameters.empty());
+        SessionHistoryList list = find(view, SessionHistoryList.class).findFirst().orElseThrow();
+        assertEquals("新对话", find(list, com.vaadin.flow.component.button.Button.class).findFirst().orElseThrow()
+                .getAriaLabel().orElseThrow());
+    }
+
+    @Test
     void workspaceShowsProSidebarWhenConversationsAreLicensed() {
         when(wrapped.getAttribute(SessionUser.ATTRIBUTE)).thenReturn(ANN);
         WorkspaceView view = workspace(true);

@@ -14,14 +14,12 @@ import com.wontlost.agui.model.ContextItem;
 import com.wontlost.agui.pro.audit.AuditTrail;
 import com.wontlost.agui.pro.conversations.ConversationBinder;
 import com.wontlost.agui.pro.conversations.ConversationSidebar;
-import com.wontlost.agui.pro.conversations.ConversationSidebarI18n;
 import com.wontlost.agui.pro.conversations.ConversationStore;
 import com.wontlost.aster.aiw.agent.RunRequestBuilder.Mode;
 import com.wontlost.aster.aiw.auth.AiwUser;
 import com.wontlost.aster.aiw.auth.HandoffUrls;
 import com.wontlost.aster.aiw.config.AiwProperties;
 import com.wontlost.aster.aiw.i18n.AiwI18nProvider;
-import com.wontlost.aster.aiw.i18n.I18nBeans;
 import com.wontlost.aster.aiw.pro.ProFeatures;
 import java.util.List;
 import java.util.Locale;
@@ -119,8 +117,7 @@ public class WorkspaceView extends VerticalLayout implements BeforeEnterObserver
     }
 
     private static Component sidebar(ConversationBinder binder, Function<String, String> texts) {
-        ConversationSidebar sidebar = new ConversationSidebar();
-        sidebar.setI18n(I18nBeans.fill(new ConversationSidebarI18n(), "sidebar.", texts));
+        ConversationSidebar sidebar = new LabelledConversationSidebar(texts);
         binder.withSidebar(sidebar);
         return sidebar;
     }

@@ -137,6 +137,12 @@ agui-chat {
   background: var(--aster-bg);
 }
 
+/* 助手消息去掉竖线后也不留缩进，正文与「ASTER AI」标签左对齐（用户气泡另有 part，不受影响） */
+agui-chat::part(assistant-bubble) {
+  border-left: 0;
+  padding-left: 0;
+}
+
 /* 代码块动作条：整颗按钮换行、靠左对齐、与代码块拉开间距 */
 agui-chat::part(code-actions) {
   flex-wrap: wrap;

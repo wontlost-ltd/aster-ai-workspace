@@ -40,7 +40,7 @@ mvn -B -ntp -Pproduction package
 | `AIW_HMAC_KEY` | 服务到 cloud 的 HMAC-SHA256 签名密钥 | 空 |
 | `AIW_HANDOFF_PUBLIC_KEY` | 校验 handoff 令牌的 Ed25519 公钥（base64 X.509 DER） | 空 |
 | `AIW_TICKET_KEY` | 短期票据密钥 | 空 |
-| `AIW_GDPR_HMAC_KEY` | cloud → 本服务 GDPR 导出 / 清除（`POST /internal/gdpr/{export,erase}`）的 HMAC 密钥，与 cloud 的 `AI_WORKSPACE_GDPR_HMAC_KEY` 相同；未设置时两个端点返回 503 | 空 |
+| `AIW_GDPR_HMAC_KEY` | cloud → 本服务 GDPR 导出 / 清除（`POST /internal/gdpr/{export,erase}`）的 HMAC 密钥，与 cloud 的 `AI_WORKSPACE_GDPR_HMAC_KEY` 相同；至少 32 字节、不得与 `AIW_HMAC_KEY` 相同（首尾空白会被去掉），不满足或未设置时两个端点返回 503 | 空 |
 | `AIW_RETENTION_DAYS` | 会话与审计保留天数 | `180` |
 | `AIW_DB_URL` / `AIW_DB_USERNAME` / `AIW_DB_PASSWORD` | 数据库连接 | 见 `application.yml` |
 | `AGUI_PRO_LICENSE` | agui Pro/EE 许可证密钥；未设置时 Pro 功能降级，仅基础聊天 | 空 |

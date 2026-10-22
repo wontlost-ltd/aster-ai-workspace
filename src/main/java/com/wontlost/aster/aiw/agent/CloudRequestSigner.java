@@ -65,12 +65,21 @@ public final class CloudRequestSigner {
      * 两个方向（本服务 → cloud 的 LLM 调用、cloud → 本服务的 GDPR 调用）共用同一格式，只是密钥不同。
      */
     public static String canonical(String method, String path, String ts, String nonce, String body, String userId) {
+        return canonical(method, path, ts, nonce, body.getBytes(StandardCharsets.UTF_8), userId);
+    }
+
+    /** 同上，摘要直接取请求体原始字节（接收方按收到的字节校验，不经字符集解码再编码）。 */
+    public static String canonical(String method, String path, String ts, String nonce, byte[] body, String userId) {
         return String.join("\n", method.toUpperCase(Locale.ROOT), path, ts, nonce, sha256Hex(body), userId);
     }
 
     static String sha256Hex(String body) {
+        return sha256Hex(body.getBytes(StandardCharsets.UTF_8));
+    }
+
+    static String sha256Hex(byte[] body) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(body.getBytes(StandardCharsets.UTF_8));
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(body);
             return HEX.formatHex(digest);
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException("JDK 缺少 SHA-256", e);

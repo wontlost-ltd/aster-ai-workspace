@@ -56,6 +56,7 @@ class HandoffServletStackTest {
         assertTrue(first.headers().allValues("Set-Cookie").stream().anyMatch(c -> c.startsWith("JSESSIONID=")));
         assertEquals(1, jdbc.queryForObject(
                 "select count(*) from aiw_handoff_jti where jti = ?", Integer.class, "stack-jti-1"));
+        assertTrue(context.getBean(UserSessions.class).tracked("user-1") >= 1, "交接后的会话登记到用户，GDPR 清除可作废");
 
         HttpResponse<String> replay = handoff(token, "/panel?policyId=p-1");
         assertEquals(302, replay.statusCode());

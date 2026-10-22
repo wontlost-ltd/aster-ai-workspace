@@ -142,6 +142,10 @@ agui-chat::part(assistant-bubble) {
   border-left: 0;
   padding-left: 0;
 }
+/* 消息操作行（复制 / 赞踩 / 重新生成）同样贴齐左边 */
+agui-chat::part(actions) {
+  margin-left: 0;
+}
 
 /* 代码块动作条：整颗按钮换行、靠左对齐、与代码块拉开间距 */
 agui-chat::part(code-actions) {

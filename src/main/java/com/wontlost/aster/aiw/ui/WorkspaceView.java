@@ -73,7 +73,7 @@ public class WorkspaceView extends VerticalLayout implements BeforeEnterObserver
         Div body = new Div(aside, main);
         body.addClassName("aster-workspace-body");
         // 窄屏下左栏是抽屉：选中或新建对话后收起，让聊天占满全宽
-        ConversationDrawer drawer = new ConversationDrawer(body, aside, texts.apply("workspace.conversations"));
+        ConversationDrawer drawer = new ConversationDrawer(body, aside, texts.apply("workspace.conversations"), this);
         aside.add(history.conversations()
                 .map(binder -> sidebar(binder, texts, drawer::close))
                 .orElseGet(() -> sessionList(chat, history, texts, drawer::close)));

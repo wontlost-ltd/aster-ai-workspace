@@ -226,6 +226,17 @@ class ViewsTest {
     }
 
     @Test
+    void backdropClickClosesTheDrawer() {
+        WorkspaceView view = workspace(false);
+        enterAs(view, "", QueryParameters.empty());
+        drawerToggle(view).click();
+        com.vaadin.flow.component.html.Div backdrop = find(view, com.vaadin.flow.component.html.Div.class)
+                .filter(d -> d.hasClassName("aster-drawer-backdrop")).findFirst().orElseThrow();
+        ComponentUtil.fireEvent(backdrop, new com.vaadin.flow.component.ClickEvent<>(backdrop));
+        assertFalse(drawerOpen(view));
+    }
+
+    @Test
     void proSidebarSelectionClosesTheDrawer() {
         WorkspaceView view = workspace(true);
         enterAs(view, "", QueryParameters.empty());

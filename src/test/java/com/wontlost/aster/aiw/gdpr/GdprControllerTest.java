@@ -172,6 +172,18 @@ class GdprControllerTest {
         assertEquals(2, conversations.list(new ConversationScope(ANN, ANN), 10).size());
     }
 
+    /** f23-contract.md 中的示例向量：cloud 侧实现可用同一组值自测。 */
+    @Test
+    void contractExampleVector() {
+        String body = "{\"userId\":\"clx0user123\",\"requestId\":\"gdpr-7f3a\"}";
+        String canonical = CloudRequestSigner.canonical("POST", "/internal/gdpr/export", "1792670000",
+                "0123456789abcdef0123456789abcdef", body, "clx0user123");
+        assertEquals("POST\n/internal/gdpr/export\n1792670000\n0123456789abcdef0123456789abcdef\n"
+                + "08355f4628d41ab94fd56a21be83849805253a2a05f5a52f8c1f59b419260751\nclx0user123", canonical);
+        assertEquals("33ab86e30ece93c1a7a1ae58ec8053fb22b92a52011e3691f577ffd9905e621c",
+                CloudRequestSigner.hmacHex("example-key-do-not-use", canonical));
+    }
+
     @Test
     void badSignatureIsRejected() throws Exception {
         var r = call(mvc(), signed(GdprController.EXPORT, body(ANN), ANN, NOW, nonce(), "wrong-key"));

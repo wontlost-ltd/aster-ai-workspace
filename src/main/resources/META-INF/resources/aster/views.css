@@ -274,7 +274,7 @@ vaadin-radio-group.aster-segmented.aster-compact > vaadin-radio-button > label {
   font-size: 0.75rem;
 }
 
-/* ---- 徽标：模型（中性）、已校验（绿）、未通过（红）、修复中（紫） ------------- */
+/* ---- 徽标：模型（中性）、已校验（绿）、未通过（红）、修复中（紫）、已截断（琥珀） --- */
 .aster-badge {
   display: inline-flex;
   align-items: center;
@@ -302,6 +302,11 @@ vaadin-radio-group.aster-segmented.aster-compact > vaadin-radio-button > label {
   border-color: var(--aster-danger-border);
   background: var(--aster-danger-subtle);
   color: var(--aster-danger-text);
+}
+.aster-badge[data-tone="warning"] {
+  border-color: var(--aster-warning-border);
+  background: var(--aster-warning-subtle);
+  color: var(--aster-warning-text);
 }
 .aster-badge[data-tone="primary"] {
   border-color: var(--aster-primary-border);

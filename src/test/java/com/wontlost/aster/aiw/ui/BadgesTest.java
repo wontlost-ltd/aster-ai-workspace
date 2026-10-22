@@ -70,6 +70,23 @@ class BadgesTest {
     }
 
     @Test
+    void truncatedIsAWarningStatusThatHidesOnTheNextRun() {
+        TruncatedLabel label = new TruncatedLabel(chat, en.apply(TruncatedLabel.KEY));
+        assertFalse(label.isVisible());
+        state("{\"truncated\":true}");
+        assertTrue(label.isVisible());
+        assertEquals(Tone.WARNING, label.getTone());
+        assertEquals("warning", label.getElement().getAttribute("data-tone"));
+        assertEquals("status", label.getElement().getAttribute("role"));
+        assertEquals("Answer was truncated", label.getText());
+        state("{\"truncated\":null}");
+        assertFalse(label.isVisible());
+        state("{\"truncated\":true}");
+        ComponentUtil.fireEvent(chat, new AgUiChat.RunStartedEvent(chat, true, "t", "r2"));
+        assertFalse(label.isVisible());
+    }
+
+    @Test
     void modelIsANeutralBadge() {
         ModelLabel label = new ModelLabel(chat, en.apply(ModelLabel.KEY));
         state("{\"model\":\"test-model\"}");

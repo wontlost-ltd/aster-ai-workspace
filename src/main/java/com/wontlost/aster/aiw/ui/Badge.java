@@ -7,7 +7,7 @@ import java.util.Locale;
 class Badge extends Span {
     /** 徽标色调；{@link #attribute()} 即 CSS 中 {@code data-tone} 的取值。 */
     enum Tone {
-        NEUTRAL, SUCCESS, DANGER, PRIMARY;
+        NEUTRAL, SUCCESS, DANGER, PRIMARY, WARNING;
 
         String attribute() {
             return name().toLowerCase(Locale.ROOT);

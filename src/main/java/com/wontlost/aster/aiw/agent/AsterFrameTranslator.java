@@ -111,10 +111,10 @@ final class AsterFrameTranslator {
         return events;
     }
 
-    /** run 开始时清空上次的校验 / 修复状态（置 null），避免状态跨 run 残留在提示里。 */
+    /** run 开始时清空上次的校验 / 修复 / 截断状态（置 null），避免状态跨 run 残留在提示里。 */
     static AgUiEvent.StateDelta statusReset() {
         ArrayNode patch = MAPPER.createArrayNode();
-        for (String path : List.of("/validated", "/validationError", "/repair")) {
+        for (String path : List.of("/validated", "/validationError", "/repair", "/truncated")) {
             patch.add(addOp(path, MAPPER.getNodeFactory().nullNode()).get(0));
         }
         return new AgUiEvent.StateDelta(patch);
@@ -133,8 +133,17 @@ final class AsterFrameTranslator {
         events.add(new AgUiEvent.MessagesSnapshot(messages));
         // 只有带编译结论的 final（generate）才发 /validated，问答类不显示「未通过校验」
         if (frame.has("validated")) {
-            JsonNode validated = MAPPER.getNodeFactory().booleanNode(frame.path("validated").asBoolean(false));
-            events.add(new AgUiEvent.StateDelta(addOp("/validated", validated)));
+            boolean ok = frame.path("validated").asBoolean(false);
+            events.add(new AgUiEvent.StateDelta(addOp("/validated", MAPPER.getNodeFactory().booleanNode(ok))));
+            // 未通过时以 diagnostics 首条作为徽标里的错误详情（{message,…} 对象或字符串均可）
+            JsonNode diagnostics = frame.path("diagnostics");
+            if (!ok && diagnostics.isArray() && !diagnostics.isEmpty()) {
+                events.add(new AgUiEvent.StateDelta(addOp("/validationError", diagnostics.get(0))));
+            }
+        }
+        // 上游因输出上限（stop reason max_tokens）截断：界面显示「回答已被截断」
+        if (frame.path("truncated").asBoolean(false)) {
+            events.add(new AgUiEvent.StateDelta(addOp("/truncated", MAPPER.getNodeFactory().booleanNode(true))));
         }
         finalized = true;
         return events;

@@ -80,7 +80,8 @@ public class PanelView extends VerticalLayout implements BeforeEnterObserver {
         Div bar = new Div(modes, newChat);
         bar.addClassName("aster-panel-bar");
         // 第二行：模型与校验徽标，按整颗徽标换行；都隐藏时整行收起
-        Div badges = new Div(new ModelLabel(chat, texts.apply(ModelLabel.KEY)), new StatusLabel(chat, texts));
+        Div badges = new Div(new ModelLabel(chat, texts.apply(ModelLabel.KEY)), new StatusLabel(chat, texts),
+                new TruncatedLabel(chat, texts.apply(TruncatedLabel.KEY)));
         badges.addClassName("aster-badges");
 
         add(bar, badges, chat);

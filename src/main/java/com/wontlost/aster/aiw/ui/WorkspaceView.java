@@ -111,7 +111,8 @@ public class WorkspaceView extends VerticalLayout implements BeforeEnterObserver
             ChatFactory.switchMode(chat, mode);
             paste.setVisible(mode != Mode.ASK);
         });
-        Div badges = new Div(new ModelLabel(chat, texts.apply(ModelLabel.KEY)), new StatusLabel(chat, texts));
+        Div badges = new Div(new ModelLabel(chat, texts.apply(ModelLabel.KEY)), new StatusLabel(chat, texts),
+                new TruncatedLabel(chat, texts.apply(TruncatedLabel.KEY)));
         badges.addClassName("aster-badges");
         Div toolbar = new Div(modes, badges);
         toolbar.addClassName("aster-toolbar");

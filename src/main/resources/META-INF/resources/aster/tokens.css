@@ -112,7 +112,7 @@ body {
 
 /*
  * <agui-chat>：全部经组件公开的 --agui-* 变量与 ::part 设置，不改组件本身。
- * 用户气泡 violet-50；助手消息只留一条浅紫左线；代码块 zinc-50 + zinc-200 边框 + JetBrains Mono。
+ * 用户气泡 violet-50 + violet-200 边框；助手消息不加左侧竖线；代码块 zinc-50 + zinc-200 边框 + JetBrains Mono。
  */
 agui-chat {
   --agui-font-family: var(--aster-font-sans);
@@ -128,24 +128,59 @@ agui-chat {
   --agui-surface-2: var(--aster-bg-subtle);
   --agui-code-background: var(--aster-bg-subtle);
   --agui-user-bubble-background: var(--aster-primary-subtle);
-  --agui-assistant-rule: var(--aster-violet-200);
+  --agui-user-bubble-border: 1px solid var(--aster-violet-200);
+  --agui-assistant-rule: transparent;
   --agui-bubble-radius: var(--aster-radius-lg);
   --agui-success-color: var(--aster-emerald-700);
   --agui-error-color: var(--aster-rose-700);
   --agui-focus-ring: var(--aster-primary-ring);
-  /* 代码块动作按钮的边框色只读这个 Lumo 变量；限定在聊天组件内，不影响其它组件 */
-  --lumo-contrast-20pct: var(--aster-border-strong);
   background: var(--aster-bg);
 }
 
-/* 代码块动作条：整颗按钮换行、靠左对齐、与代码块拉开间距；按钮继承这里的字色与字重 */
+/* 助手消息去掉竖线后也不留缩进，正文与「ASTER AI」标签左对齐（用户气泡另有 part，不受影响） */
+agui-chat::part(assistant-bubble) {
+  border-left: 0;
+  padding-left: 0;
+}
+/* 消息操作行（复制 / 赞踩 / 重新生成）同样贴齐左边 */
+agui-chat::part(actions) {
+  margin-left: 0;
+}
+
+/* 代码块动作条：整颗按钮换行、靠左对齐、与代码块拉开间距 */
 agui-chat::part(code-actions) {
   flex-wrap: wrap;
   justify-content: flex-start;
   gap: 0.375rem;
   margin: 0.375rem 0 0.75rem;
+}
+
+/* 代码块动作按钮：小号文字按钮，图标随 currentColor；悬停与键盘聚焦走 Aster 紫 */
+agui-chat::part(code-action) {
+  gap: 0.375rem;
+  height: 1.75rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--aster-border-strong);
+  border-radius: var(--aster-radius-md);
+  background: var(--aster-bg);
   color: var(--aster-zinc-700);
+  font-size: 0.75rem;
   font-weight: 500;
+  transition: background-color 120ms, border-color 120ms, color 120ms;
+}
+/* 插入 / 替换会写回编辑器，是侧栏的主要动作：字色略强于复制 */
+agui-chat::part(code-action-insert),
+agui-chat::part(code-action-replace) {
+  color: var(--aster-fg);
+}
+agui-chat::part(code-action):hover {
+  border-color: var(--aster-primary);
+  background: var(--aster-primary-subtle);
+  color: var(--aster-primary);
+}
+agui-chat::part(code-action):focus-visible {
+  outline: 2px solid var(--aster-primary-ring);
+  outline-offset: 2px;
 }
 
 /* Pro 会话侧栏：选中态与强调色走 Aster 紫 */

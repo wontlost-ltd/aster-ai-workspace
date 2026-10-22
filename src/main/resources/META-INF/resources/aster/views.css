@@ -389,8 +389,16 @@ vaadin-radio-group.aster-segmented.aster-compact > vaadin-radio-button > label {
 .aster-panel .aster-badges {
   padding: 0.5rem 0.75rem 0;
 }
-/* 两个徽标都隐藏时整行收起，不留空白 */
-.aster-badges:not(:has(> :not([hidden]))) {
+/* 常驻的空 live region（截断提示容器）移出排版、不占间距，但仍留在无障碍树里以便内容出现时被播报 */
+.aster-live:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+/* 徽标都隐藏（live region 为空）时整行收起，不留空白 */
+.aster-badges:not(:has(> :not([hidden], .aster-live:empty))) {
   display: none;
 }
 .aster-panel > agui-chat {

@@ -409,15 +409,15 @@ class ViewsTest {
     void workspaceAndPanelShowTheTruncatedNote() {
         WorkspaceView view = workspace(false);
         AgUiChat chat = enterAs(view, "", QueryParameters.empty());
-        assertFalse(find(view, TruncatedLabel.class).findFirst().orElseThrow().isVisible());
+        assertFalse(find(view, TruncatedLabel.class).findFirst().orElseThrow().showing());
         stateChanged(chat, "{\"truncated\":true}");
         assertEquals(1, spansWithText(view, "回答已被截断"));
-        assertTrue(find(view, TruncatedLabel.class).findFirst().orElseThrow().isVisible());
+        assertTrue(find(view, TruncatedLabel.class).findFirst().orElseThrow().showing());
 
         PanelView panel = panel(false);
         AgUiChat panelChat = enterAs(panel, "panel", QueryParameters.of("policyId", "p-1"));
         stateChanged(panelChat, "{\"truncated\":true}");
-        assertTrue(find(panel, TruncatedLabel.class).findFirst().orElseThrow().isVisible());
+        assertTrue(find(panel, TruncatedLabel.class).findFirst().orElseThrow().showing());
     }
 
     @Test

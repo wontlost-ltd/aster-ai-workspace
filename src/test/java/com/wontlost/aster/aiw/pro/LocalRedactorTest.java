@@ -2,6 +2,8 @@ package com.wontlost.aster.aiw.pro;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.time.Duration;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -17,7 +19,14 @@ class LocalRedactorTest {
         "+1 (555) 123-4567",
         "+64 4 555 0192",
         "+49 30 901820",
+        "+49 30 12345678",
         "+91-98765-43210",
+        "+91 98765 43210",
+        "98765 43210",
+        "030 12345678",
+        "0171 1234567",
+        "07700 900123",
+        "+1 2 3 4 5 6 7",
         "13800138000",
         "138 0013 8000",
         "138-0013-8000",
@@ -59,6 +68,12 @@ class LocalRedactorTest {
         "1555-123-4567",
         "+5",
         "+1 23",
+        "+12345678",
+        "+12345678 bytes",
+        "+1 2 3 4 5 6 7 8 9",
+        "5551234567",
+        "9876543210",
+        "12345 67890",
         "order 1234567890123",
     })
     void amountsDatesAndPlainDigitRunsAreKept(String text) {
@@ -75,5 +90,25 @@ class LocalRedactorTest {
     })
     void mixedProseOnlyLosesTheRealIdentifiers(String in, String out) {
         assertEquals(out, redactor.redact(in));
+    }
+
+    /** 对抗输入（+ 后接长数字串、长分组串）必须线性完成：原子组之前 96 KB 输入要 1 秒以上。 */
+    @Test
+    void adversarialInputsFinishQuickly() {
+        String[] inputs = {
+            (" +" + "1".repeat(30)).repeat(3000),
+            (" +1" + " 1".repeat(40)).repeat(1000),
+            (" +1 (" + "2".repeat(4) + ")" + "-3".repeat(30)).repeat(1000),
+            ("138 " + "0013 ".repeat(20)).repeat(1000),
+        };
+        for (String input : inputs) {
+            redactor.redact(input);
+        }
+        for (String input : inputs) {
+            long start = System.nanoTime();
+            redactor.redact(input);
+            long ms = Duration.ofNanos(System.nanoTime() - start).toMillis();
+            org.junit.jupiter.api.Assertions.assertTrue(ms < 100, input.length() + " 字符耗时 " + ms + " ms");
+        }
     }
 }

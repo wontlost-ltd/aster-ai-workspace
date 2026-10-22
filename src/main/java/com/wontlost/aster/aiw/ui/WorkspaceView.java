@@ -66,22 +66,26 @@ public class WorkspaceView extends VerticalLayout implements BeforeEnterObserver
         HistoryBinding history = HistoryBinding.bind(chat, user, chat.getThreadId(), pro, store, trail);
         TicketExpiry.watch(chat, user, chats, texts.apply(TicketExpiry.RENEWED_KEY),
                 () -> UI.getCurrent().getPage().setLocation(HandoffUrls.rehandoff(props.cloudUrl(), "/", user.locale())));
-        Component list = history.conversations()
-                .map(binder -> sidebar(binder, texts))
-                .orElseGet(() -> sessionList(chat, history, texts));
-        Div aside = new Div(list);
+        Div aside = new Div();
         aside.addClassName("aster-sidebar");
-
         Div main = new Div(conversation(chat, texts));
         main.addClassName("aster-main");
         Div body = new Div(aside, main);
         body.addClassName("aster-workspace-body");
-        add(header(user, texts), body);
+        // 窄屏下左栏是抽屉：选中或新建对话后收起，让聊天占满全宽
+        ConversationDrawer drawer = new ConversationDrawer(body, aside, texts.apply("workspace.conversations"));
+        aside.add(history.conversations()
+                .map(binder -> sidebar(binder, texts, drawer::close))
+                .orElseGet(() -> sessionList(chat, history, texts, drawer::close)));
+
+        Div top = header(user, texts);
+        top.addComponentAsFirst(drawer.toggle());
+        add(top, body);
         setFlexGrow(1, body);
     }
 
     /** 顶栏：字标 + 栏目名，右侧为用户头像与「返回 Aster Cloud」。 */
-    private Component header(AiwUser user, Function<String, String> texts) {
+    private Div header(AiwUser user, Function<String, String> texts) {
         String name = displayName(user);
         Span avatar = TopBar.span(initial(name), "aster-avatar");
         // 名字紧挨着显示，头像只是装饰，读屏跳过
@@ -116,14 +120,17 @@ public class WorkspaceView extends VerticalLayout implements BeforeEnterObserver
         return column;
     }
 
-    private static Component sidebar(ConversationBinder binder, Function<String, String> texts) {
+    private static Component sidebar(ConversationBinder binder, Function<String, String> texts, Runnable picked) {
         ConversationSidebar sidebar = new LabelledConversationSidebar(texts);
         binder.withSidebar(sidebar);
+        sidebar.addConversationSelectedListener(e -> picked.run());
+        sidebar.addNewConversationListener(e -> picked.run());
         return sidebar;
     }
 
-    private static Component sessionList(AgUiChat chat, HistoryBinding history, Function<String, String> texts) {
-        return new SessionHistoryList(history.sessionHistory().orElseThrow(), history, chat, texts);
+    private static Component sessionList(AgUiChat chat, HistoryBinding history, Function<String, String> texts,
+            Runnable picked) {
+        return new SessionHistoryList(history.sessionHistory().orElseThrow(), history, chat, texts, picked);
     }
 
     /** 头像只显示名字的首字（按码点取，兼容中文与天城文），大写。 */

@@ -194,6 +194,49 @@ class ViewsTest {
                 .getAriaLabel().orElseThrow());
     }
 
+    private static com.vaadin.flow.component.button.Button drawerToggle(Component view) {
+        return find(view, com.vaadin.flow.component.button.Button.class)
+                .filter(b -> b.hasClassName("aster-drawer-toggle")).findFirst().orElseThrow();
+    }
+
+    private static boolean drawerOpen(Component view) {
+        return find(view, com.vaadin.flow.component.html.Div.class)
+                .filter(d -> d.hasClassName("aster-workspace-body")).findFirst().orElseThrow()
+                .hasClassName(ConversationDrawer.OPEN_CLASS);
+    }
+
+    @Test
+    void narrowScreenDrawerTogglesAndClosesAfterPickingAConversation() {
+        WorkspaceView view = workspace(false);
+        enterAs(view, "", QueryParameters.empty());
+        com.vaadin.flow.component.button.Button toggle = drawerToggle(view);
+        assertEquals("对话列表", toggle.getAriaLabel().orElseThrow());
+        assertEquals(ConversationDrawer.SIDEBAR_ID, toggle.getElement().getAttribute("aria-controls"));
+        assertEquals("false", toggle.getElement().getAttribute("aria-expanded"));
+        assertFalse(drawerOpen(view));
+
+        toggle.click();
+        assertTrue(drawerOpen(view));
+        assertEquals("true", toggle.getElement().getAttribute("aria-expanded"));
+
+        SessionHistoryList list = find(view, SessionHistoryList.class).findFirst().orElseThrow();
+        find(list, com.vaadin.flow.component.button.Button.class).findFirst().orElseThrow().click();
+        assertFalse(drawerOpen(view), "新建对话后收起抽屉");
+        assertEquals("false", toggle.getElement().getAttribute("aria-expanded"));
+    }
+
+    @Test
+    void proSidebarSelectionClosesTheDrawer() {
+        WorkspaceView view = workspace(true);
+        enterAs(view, "", QueryParameters.empty());
+        drawerToggle(view).click();
+        assertTrue(drawerOpen(view));
+
+        ConversationSidebar sidebar = find(view, ConversationSidebar.class).findFirst().orElseThrow();
+        ComponentUtil.fireEvent(sidebar, new ConversationSidebar.NewConversationEvent(sidebar, true));
+        assertFalse(drawerOpen(view));
+    }
+
     @Test
     void workspaceShowsProSidebarWhenConversationsAreLicensed() {
         when(wrapped.getAttribute(SessionUser.ATTRIBUTE)).thenReturn(ANN);

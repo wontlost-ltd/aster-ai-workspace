@@ -85,7 +85,20 @@ class GovernanceConfigTest {
             assertInstanceOf(PatternRedactor.class, assertInstanceOf(CodeAwareRedactor.class, r).delegate());
             assertEquals("[key]", r.redact(KEY));
             assertEquals("[email]", r.redact("ann@example.com"));
+            assertPhoneNeedsStructure(r);
         });
+    }
+
+    @Test
+    void unlicensedPhoneRuleNeedsStructure() {
+        runner(false).run(ctx -> assertPhoneNeedsStructure(ctx.getBean(Redactor.class)));
+    }
+
+    /** 已授权与未授权两条路径的电话判定一致：金额、日期不是电话（D5）。 */
+    private static void assertPhoneNeedsStructure(Redactor r) {
+        assertEquals("max 999999999 / 1,000,000 / 10000 on 2026-10-22",
+                r.redact("max 999999999 / 1,000,000 / 10000 on 2026-10-22"));
+        assertEquals("tel [phone] or [phone]", r.redact("tel +86 138 0013 8000 or 13800138000"));
     }
 
     @Test

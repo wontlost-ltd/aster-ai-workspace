@@ -112,7 +112,7 @@ body {
 
 /*
  * <agui-chat>：全部经组件公开的 --agui-* 变量与 ::part 设置，不改组件本身。
- * 用户气泡 violet-50 + violet-200 边框；助手消息不加左侧竖线；代码块 zinc-50 + zinc-200 边框 + JetBrains Mono。
+ * 用户气泡 violet-50；助手消息不加左侧竖线；代码块 zinc-50 + zinc-200 边框 + JetBrains Mono。
  */
 agui-chat {
   --agui-font-family: var(--aster-font-sans);
@@ -128,7 +128,6 @@ agui-chat {
   --agui-surface-2: var(--aster-bg-subtle);
   --agui-code-background: var(--aster-bg-subtle);
   --agui-user-bubble-background: var(--aster-primary-subtle);
-  --agui-user-bubble-border: 1px solid var(--aster-violet-200);
   --agui-assistant-rule: transparent;
   --agui-bubble-radius: var(--aster-radius-lg);
   --agui-success-color: var(--aster-emerald-700);

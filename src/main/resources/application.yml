@@ -27,6 +27,9 @@ agui:
     observability:
       enabled: false
 aiw:
+  db:
+    # ai_workspace schema 归属自检：off / lenient（默认，本地与 CI）/ strict（生产，不符即启动失败）
+    owner-check: ${AIW_DB_OWNER_CHECK:lenient}
   cloud-url: ${AIW_CLOUD_URL:https://aster-lang.cloud}
   cloud-origin: ${AIW_CLOUD_ORIGIN:https://aster-lang.cloud}
   hmac-key: ${AIW_HMAC_KEY:}
